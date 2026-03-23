@@ -25,24 +25,26 @@ const (
 )
 
 type Model struct {
-	sessions    []tmux.Session
-	filtered    []tmux.Session
-	cursor      int
-	mode        mode
-	width       int
-	height      int
-	err         error
-	createModel createModel
-	renameModel renameModel
-	filterInput textinput.Model
-	filterText  string
-	attachName  string // set when we want to attach after quitting
+	sessions       []tmux.Session
+	filtered       []tmux.Session
+	cursor         int
+	mode           mode
+	width          int
+	height         int
+	err            error
+	createModel    createModel
+	renameModel    renameModel
+	filterInput    textinput.Model
+	filterText     string
+	attachName     string // set when we want to attach after quitting
+	previewContent string // cached capture-pane output
+	previewSession string // session name the cache belongs to
 }
 
 type tickMsg time.Time
 
 func tick() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -55,6 +57,21 @@ type sessionsLoadedMsg struct {
 func loadSessions() tea.Msg {
 	sessions, err := tmux.ListSessions()
 	return sessionsLoadedMsg{sessions: sessions, err: err}
+}
+
+type previewLoadedMsg struct {
+	sessionName string
+	content     string
+}
+
+func refreshPreview(sessionName string) tea.Cmd {
+	return func() tea.Msg {
+		content, err := tmux.CapturePane(sessionName)
+		if err != nil {
+			content = "Error: " + err.Error()
+		}
+		return previewLoadedMsg{sessionName: sessionName, content: content}
+	}
 }
 
 func NewModel() Model {
@@ -80,7 +97,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(loadSessions, tick())
+		cmds := []tea.Cmd{loadSessions, tick()}
+		if name := m.currentSessionName(); name != "" {
+			cmds = append(cmds, refreshPreview(name))
+		}
+		return m, tea.Batch(cmds...)
 
 	case sessionsLoadedMsg:
 		m.err = msg.err
@@ -88,6 +109,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sessions = msg.sessions
 			m.applyFilter()
 		}
+		return m, nil
+
+	case previewLoadedMsg:
+		m.previewSession = msg.sessionName
+		m.previewContent = msg.content
 		return m, nil
 
 	case sessionCreatedMsg:
@@ -123,16 +149,28 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				if name := m.currentSessionName(); name != "" {
+					return m, refreshPreview(name)
+				}
 			}
 		case "down", "j":
 			if m.cursor < len(m.filtered)-1 {
 				m.cursor++
+				if name := m.currentSessionName(); name != "" {
+					return m, refreshPreview(name)
+				}
 			}
 		case "g":
 			m.cursor = 0
+			if name := m.currentSessionName(); name != "" {
+				return m, refreshPreview(name)
+			}
 		case "G":
 			if len(m.filtered) > 0 {
 				m.cursor = len(m.filtered) - 1
+				if name := m.currentSessionName(); name != "" {
+					return m, refreshPreview(name)
+				}
 			}
 
 		case "enter":
@@ -243,6 +281,13 @@ func (m Model) updateConfirmKill(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) currentSessionName() string {
+	if m.cursor < len(m.filtered) {
+		return m.filtered[m.cursor].Name
+	}
+	return ""
+}
+
 func (m *Model) applyFilter() {
 	if m.filterText == "" {
 		m.filtered = m.sessions
@@ -318,7 +363,11 @@ func (m Model) viewMain() string {
 	if m.cursor < len(m.filtered) {
 		currentSession = &m.filtered[m.cursor]
 	}
-	preview := renderPreview(currentSession, previewWidth, panelHeight)
+	cachedContent := ""
+	if currentSession != nil && m.previewSession == currentSession.Name {
+		cachedContent = m.previewContent
+	}
+	preview := renderPreview(currentSession, cachedContent, previewWidth, panelHeight)
 
 	// Join line-by-line for exact alignment
 	content := joinHorizontalFixed(list, preview)

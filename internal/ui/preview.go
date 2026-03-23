@@ -8,7 +8,7 @@ import (
 	"github.com/lunemis/mux/internal/tmux"
 )
 
-func renderPreview(session *tmux.Session, width, height int) string {
+func renderPreview(session *tmux.Session, captured string, width, height int) string {
 	innerWidth := width - 2
 	innerHeight := height - 2
 
@@ -28,17 +28,12 @@ func renderPreview(session *tmux.Session, width, height int) string {
 	}
 
 	// Header
-	header := fmt.Sprintf("[ %s ]  %s", session.Name, shortenPath(session.Directory))
+	badge := aiLabel(session.ActiveCommand)
+	header := fmt.Sprintf("[ %s ]  %s%s", session.Name, shortenPath(session.Directory), badge)
 	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(
 		padOrTruncate(header, innerWidth))
 	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(
 		strings.Repeat("─", innerWidth))
-
-	// Capture pane content
-	captured, err := tmux.CapturePane(session.Name)
-	if err != nil {
-		captured = "Error: " + err.Error()
-	}
 
 	// Available lines for content (minus header + separator)
 	contentLines := innerHeight - 2
@@ -66,6 +61,20 @@ func renderPreview(session *tmux.Session, width, height int) string {
 
 	content := strings.Join(allLines, "\n")
 	return drawBorder(content, width, innerHeight)
+}
+
+func aiLabel(cmd string) string {
+	switch cmd {
+	case "claude":
+		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Bold(true).Render("✦ claude")
+	case "codex":
+		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA")).Bold(true).Render("◈ codex")
+	case "aider":
+		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true).Render("⬡ aider")
+	case "gemini":
+		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).Bold(true).Render("✧ gemini")
+	}
+	return ""
 }
 
 func shortenPath(path string) string {

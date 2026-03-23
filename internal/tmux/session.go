@@ -3,12 +3,13 @@ package tmux
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const listFormat = "#{session_name}|#{session_windows}|#{session_created}|#{session_attached}|#{pane_current_path}"
+const listFormat = "#{session_name}|#{session_windows}|#{session_created}|#{session_attached}|#{pane_current_path}|#{session_activity}|#{pane_current_command}|#{pane_pid}"
 
 func ListSessions() ([]Session, error) {
 	out, err := exec.Command("tmux", "list-sessions", "-F", listFormat).Output()
@@ -33,25 +34,39 @@ func ListSessions() ([]Session, error) {
 		}
 		sessions = append(sessions, s)
 	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].Attached != sessions[j].Attached {
+			return sessions[i].Attached
+		}
+		return sessions[i].Activity.After(sessions[j].Activity)
+	})
+
 	return sessions, nil
 }
 
 func parseLine(line string) (Session, error) {
-	parts := strings.SplitN(line, "|", 5)
-	if len(parts) < 5 {
+	parts := strings.SplitN(line, "|", 8)
+	if len(parts) < 8 {
 		return Session{}, fmt.Errorf("unexpected format: %s", line)
 	}
 
 	windows, _ := strconv.Atoi(parts[1])
 	createdUnix, _ := strconv.ParseInt(parts[2], 10, 64)
 	attached, _ := strconv.Atoi(parts[3])
+	activityUnix, _ := strconv.ParseInt(parts[5], 10, 64)
+	panePID, _ := strconv.Atoi(parts[7])
+
+	activeCommand := resolveCommand(panePID, parts[6])
 
 	return Session{
-		Name:      parts[0],
-		Windows:   windows,
-		Created:   time.Unix(createdUnix, 0),
-		Attached:  attached > 0,
-		Directory: parts[4],
+		Name:          parts[0],
+		Windows:       windows,
+		Created:       time.Unix(createdUnix, 0),
+		Activity:      time.Unix(activityUnix, 0),
+		Attached:      attached > 0,
+		Directory:     parts[4],
+		ActiveCommand: activeCommand,
 	}, nil
 }
 

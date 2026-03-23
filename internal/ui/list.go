@@ -60,7 +60,10 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	ago := timeAgo(s.Created)
 
-	raw := fmt.Sprintf(" %s %-18s %s %dw", status, name, ago, s.Windows)
+	// AI command icon
+	icon := commandIcon(s.ActiveCommand)
+
+	raw := fmt.Sprintf(" %s %-18s %s %s%dw", status, name, ago, icon, s.Windows)
 
 	if selected {
 		styled := lipgloss.NewStyle().
@@ -75,6 +78,23 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 		Foreground(lipgloss.Color("#9CA3AF")).
 		Render(padOrTruncate(raw, width))
 	return styled
+}
+
+// commandIcon returns a short icon string (with trailing space) for known AI CLIs,
+// or two spaces for anything else, keeping column widths consistent.
+func commandIcon(cmd string) string {
+	switch cmd {
+	case "claude":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Render("✦") + " "
+	case "codex":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA")).Render("◈") + " "
+	case "aider":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Render("⬡") + " "
+	case "gemini":
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).Render("✧") + " "
+	default:
+		return "  "
+	}
 }
 
 func centerText(s string, width int) string {
