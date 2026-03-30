@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -78,12 +79,9 @@ func aiLabel(cmd string) string {
 }
 
 func shortenPath(path string) string {
-	if idx := strings.Index(path, "/Users/"); idx >= 0 {
-		parts := strings.SplitN(path[idx:], "/", 4)
-		if len(parts) >= 4 {
-			path = "~/" + parts[3]
-		} else if len(parts) == 3 {
-			path = "~"
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		if strings.HasPrefix(path, home) {
+			path = "~" + path[len(home):]
 		}
 	}
 	if len(path) > 35 {

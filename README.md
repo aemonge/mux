@@ -1,101 +1,121 @@
 # mux
 
-tmux 세션을 터미널에서 빠르게 탐색하고 관리하는 TUI 도구입니다.
+A TUI tool for browsing and managing tmux sessions from the terminal.
+
+[한국어](README.ko.md)
 
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-## 기능
+## Features
 
-- **세션 목록** — 활성/비활성 세션을 최근 활동 순으로 정렬하여 표시
-- **실시간 프리뷰** — 선택한 세션의 터미널 출력을 우측 패널에 실시간으로 표시 (500ms 주기 갱신)
-- **AI CLI 감지** — 세션에서 `claude`, `codex`, `aider`, `gemini` 등의 AI CLI가 실행 중이면 배지로 표시
-- **세션 생성/삭제/이름 변경** — TUI 내에서 모든 세션 관리 작업 가능
-- **퀵 필터** — `/` 키로 세션 이름 또는 경로를 실시간 필터링
-- **즉시 연결** — `Enter` 키로 선택한 세션에 바로 attach (tmux 내부에서는 `switch-client` 사용)
+- **Session list** — Active/inactive sessions sorted by recent activity
+- **Live preview** — Real-time terminal output of the selected session in the right panel (refreshed every 500ms)
+- **AI CLI detection** — Shows a badge when `claude`, `codex`, `aider`, `gemini`, or other AI CLIs are running in a session
+- **Session management** — Create, delete, and rename sessions without leaving the TUI
+- **Quick filter** — Press `/` to filter sessions by name or path in real time
+- **Instant attach** — Press `Enter` to attach to the selected session (`switch-client` when inside tmux)
 
-## 설치
+## Installation
+
+### From source
 
 ```bash
-git clone https://github.ecodesamsung.com/euteum-park/mux.git
+git clone https://github.com/lunemis/mux.git
 cd mux
-go build -o mux .
+make build
 ```
 
-빌드된 바이너리를 PATH에 추가:
+Move the binary to your PATH:
 
 ```bash
-mv mux /usr/local/bin/
+make install  # installs to /usr/local/bin
 ```
 
-## 사용법
+### Go install
+
+```bash
+go install github.com/lunemis/mux@latest
+```
+
+## Usage
 
 ```bash
 mux
 ```
 
-### 팝업 모드 (추천)
+### Popup mode (recommended)
 
-tmux 안에서 작업 중일 때, 어떤 프로그램(claude, codex 등)이 실행 중이어도 키 하나로 mux를 오버레이로 띄울 수 있습니다.
+Open mux as a floating overlay inside tmux with a single keybinding — works even while AI CLIs (claude, codex, etc.) are running.
 
-**설정:**
+**Setup:**
 
 ```bash
-# prefix + m 으로 팝업 열기 (기본값)
+# Bind prefix + m to open the popup (default)
 mux setup-keybind
 
-# 다른 키로 변경 가능
+# Use a different key
 mux setup-keybind Space
 
-# tmux 설정 리로드
+# Reload tmux config
 tmux source-file ~/.tmux.conf
 ```
 
-**사용:**
+**Use:**
 
-`Ctrl+b` → `m` (또는 설정한 키)으로 mux 팝업이 열리고, 세션 선택 또는 `q`로 닫으면 원래 작업으로 돌아갑니다.
+Press `Ctrl+b` then `m` (or your configured key) to open the popup. Select a session or press `q` to dismiss.
 
-수동으로 팝업을 열 수도 있습니다:
+You can also open the popup manually:
 
 ```bash
 mux popup
 ```
 
-> **참고:** tmux 3.2 이상 필요 (`tmux -V`로 확인)
+> **Note:** Popup mode requires tmux 3.2+ (`tmux -V` to check)
 
-### 키바인딩
+### Keybindings
 
-| 키 | 동작 |
+| Key | Action |
 |---|---|
-| `↑` / `k` | 위로 이동 |
-| `↓` / `j` | 아래로 이동 |
-| `g` / `G` | 처음 / 마지막으로 이동 |
-| `Enter` | 선택한 세션에 attach |
-| `n` | 새 세션 생성 |
-| `r` | 세션 이름 변경 |
-| `x` | 세션 삭제 (확인 후) |
-| `/` | 세션 필터링 |
-| `Esc` | 필터 초기화 / 모드 취소 |
-| `q` / `Ctrl+C` | 종료 |
+| `Up` / `k` | Move up |
+| `Down` / `j` | Move down |
+| `g` / `G` | Jump to first / last |
+| `Enter` | Attach to selected session |
+| `n` | Create new session |
+| `r` | Rename session |
+| `x` | Delete session (with confirmation) |
+| `/` | Filter sessions |
+| `Esc` | Clear filter / cancel |
+| `q` / `Ctrl+C` | Quit |
 
-## 레이아웃
+## Layout
 
 ```
 ⚡ tmux sessions (3)
 ┌─────────────────┐┌──────────────────────────────────────┐
 │ ● my-project    ││ [ my-project ]  ~/dev/project  ✦ claude│
 │   dev-server    ││ ─────────────────────────────────────  │
-│   dotfiles      ││ ...터미널 출력 미리보기...               │
+│   dotfiles      ││ ...terminal output preview...          │
 └─────────────────┘└──────────────────────────────────────┘
 ↑↓/jk navigate  •  enter attach  •  n new  •  x kill  •  r rename  •  / filter  •  q quit
 ```
 
-## 요구사항
+## Requirements
 
-- Go 1.21+
-- tmux (팝업 모드는 3.2+)
+- Go 1.21+ (build only)
+- tmux (popup mode requires 3.2+)
+- Linux or macOS
 
-## 의존성
+## Dependencies
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI 프레임워크
-- [Bubbles](https://github.com/charmbracelet/bubbles) — TUI 컴포넌트
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — 스타일링
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
+- [Bubbles](https://github.com/charmbracelet/bubbles) — TUI components
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Styling
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+[MIT](LICENSE)
