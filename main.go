@@ -9,9 +9,14 @@ import (
 	"github.com/lunemis/mux/internal/ui"
 )
 
+var version = "dev"
+
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "--version", "-v":
+			fmt.Println("mux " + version)
+			return
 		case "popup":
 			if err := tmux.OpenPopup(); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -64,6 +69,7 @@ Usage:
   mux                         Launch session manager
   mux popup                   Open mux as a tmux popup overlay
   mux setup-keybind [key]     Add popup keybinding to ~/.tmux.conf (default: m)
+  mux --version               Show version
   mux --help                  Show this help
 
 Popup Mode:

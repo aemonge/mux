@@ -11,6 +11,7 @@ import (
 
 const listFormat = "#{session_name}|#{session_windows}|#{session_created}|#{session_attached}|#{pane_current_path}|#{session_activity}|#{pane_current_command}|#{pane_pid}"
 
+// ListSessions returns all tmux sessions sorted by attached status and recent activity.
 func ListSessions() ([]Session, error) {
 	out, err := exec.Command("tmux", "list-sessions", "-F", listFormat).Output()
 	if err != nil {
@@ -70,18 +71,22 @@ func parseLine(line string) (Session, error) {
 	}, nil
 }
 
+// CreateSession creates a new detached tmux session with the given name.
 func CreateSession(name string) error {
 	return exec.Command("tmux", "new-session", "-d", "-s", name).Run()
 }
 
+// CreateSessionWithDir creates a new detached tmux session starting in the given directory.
 func CreateSessionWithDir(name, dir string) error {
 	return exec.Command("tmux", "new-session", "-d", "-s", name, "-c", dir).Run()
 }
 
+// KillSession destroys the tmux session with the given name.
 func KillSession(name string) error {
 	return exec.Command("tmux", "kill-session", "-t", name).Run()
 }
 
+// RenameSession renames a tmux session from oldName to newName.
 func RenameSession(oldName, newName string) error {
 	return exec.Command("tmux", "rename-session", "-t", oldName, newName).Run()
 }

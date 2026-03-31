@@ -1,3 +1,4 @@
+// Package ui implements the Bubble Tea TUI for browsing and managing tmux sessions.
 package ui
 
 import (
@@ -24,6 +25,7 @@ const (
 	modeConfirmKill
 )
 
+// Model is the top-level Bubble Tea model for the session manager TUI.
 type Model struct {
 	sessions       []tmux.Session
 	filtered       []tmux.Session
@@ -74,6 +76,7 @@ func refreshPreview(sessionName string) tea.Cmd {
 	}
 }
 
+// NewModel returns a new Model with default settings.
 func NewModel() Model {
 	fi := textinput.New()
 	fi.Placeholder = "filter..."

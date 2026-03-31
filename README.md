@@ -7,6 +7,11 @@ A TUI tool for browsing and managing tmux sessions from the terminal.
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
+<!-- TODO: Replace with an actual demo recording
+     Record with: https://github.com/charmbracelet/vhs
+     vhs demo.tape  →  produces demo.gif -->
+![Demo](assets/demo.gif)
+
 ## Features
 
 - **Session list** — Active/inactive sessions sorted by recent activity
@@ -17,6 +22,12 @@ A TUI tool for browsing and managing tmux sessions from the terminal.
 - **Instant attach** — Press `Enter` to attach to the selected session (`switch-client` when inside tmux)
 
 ## Installation
+
+### Homebrew
+
+```bash
+brew install lunemis/tap/mux
+```
 
 ### From source
 
