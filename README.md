@@ -1,6 +1,8 @@
 # mux
 
-A TUI tool for browsing and managing tmux sessions from the terminal.
+**Switch between AI CLI sessions without breaking your flow.**
+
+Running Claude in one session, Codex in another, and a dev server in a third? Switching between them means detaching, listing sessions, remembering which is which, and reattaching. mux eliminates that friction — see every session's live output at a glance, spot which AI tools are active, and switch in a keystroke.
 
 [한국어](README.ko.md)
 
@@ -12,14 +14,55 @@ A TUI tool for browsing and managing tmux sessions from the terminal.
      vhs demo.tape  →  produces demo.gif -->
 ![Demo](assets/demo.gif)
 
-## Features
+## The Problem
 
-- **Session list** — Active/inactive sessions sorted by recent activity
-- **Live preview** — Real-time terminal output of the selected session in the right panel (refreshed every 500ms)
-- **AI CLI detection** — Shows a badge when `claude`, `codex`, `aider`, `gemini`, or other AI CLIs are running in a session
-- **Session management** — Create, delete, and rename sessions without leaving the TUI
-- **Quick filter** — Press `/` to filter sessions by name or path in real time
-- **Instant attach** — Press `Enter` to attach to the selected session (`switch-client` when inside tmux)
+In the age of AI-powered development, a typical workflow looks like:
+
+- **Session 1**: Claude Code working on your feature
+- **Session 2**: Codex reviewing your test suite
+- **Session 3**: Dev server running your app
+- **Session 4**: Another Claude session refactoring a different module
+
+tmux's built-in `choose-session` shows you a list of names — but which session has Claude waiting for your input? Which one is still running? You end up cycling through sessions blindly.
+
+## How mux solves it
+
+### Live preview
+See the actual terminal output of any session *before* you switch. No more guessing.
+
+<!-- TODO: screenshot of the main view with live preview panel visible -->
+<!-- ![Live preview](assets/preview.png) -->
+
+### AI CLI detection
+`claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
+
+<!-- TODO: screenshot showing sessions with AI CLI badges (✦ claude, ◈ codex, etc.) -->
+<!-- ![AI CLI badges](assets/ai-badges.png) -->
+
+### Popup overlay
+Press one key to summon mux on top of whatever you're doing — even mid-conversation with an AI CLI. Pick a session and you're there.
+
+<!-- TODO: screenshot/gif of popup appearing over an active Claude session -->
+<!-- ![Popup mode](assets/popup.gif) -->
+
+### Vim-style navigation
+`j`/`k` to browse, `/` to filter, `Enter` to attach. No mouse needed.
+
+## Quick Start
+
+```bash
+brew install lunemis/tap/mux   # or: go install github.com/lunemis/mux@latest
+mux                             # launch the session manager
+```
+
+For the best experience, set up popup mode (opens mux as a floating overlay):
+
+```bash
+mux setup-keybind               # binds prefix + m
+tmux source-file ~/.tmux.conf   # reload config
+```
+
+Now press `Ctrl+b` then `m` anywhere in tmux to open mux.
 
 ## Installation
 
@@ -34,13 +77,7 @@ brew install lunemis/tap/mux
 ```bash
 git clone https://github.com/lunemis/mux.git
 cd mux
-make build
-```
-
-Move the binary to your PATH:
-
-```bash
-make install  # installs to /usr/local/bin
+make install   # builds and installs to /usr/local/bin
 ```
 
 ### Go install
@@ -51,55 +88,9 @@ go install github.com/lunemis/mux@latest
 
 ## Usage
 
-```bash
-mux
-```
+### Basic
 
-### Popup mode (recommended)
-
-Open mux as a floating overlay inside tmux with a single keybinding — works even while AI CLIs (claude, codex, etc.) are running.
-
-**Setup:**
-
-```bash
-# Bind prefix + m to open the popup (default)
-mux setup-keybind
-
-# Use a different key
-mux setup-keybind Space
-
-# Reload tmux config
-tmux source-file ~/.tmux.conf
-```
-
-**Use:**
-
-Press `Ctrl+b` then `m` (or your configured key) to open the popup. Select a session or press `q` to dismiss.
-
-You can also open the popup manually:
-
-```bash
-mux popup
-```
-
-> **Note:** Popup mode requires tmux 3.2+ (`tmux -V` to check)
-
-### Keybindings
-
-| Key | Action |
-|---|---|
-| `Up` / `k` | Move up |
-| `Down` / `j` | Move down |
-| `g` / `G` | Jump to first / last |
-| `Enter` | Attach to selected session |
-| `n` | Create new session |
-| `r` | Rename session |
-| `x` | Delete session (with confirmation) |
-| `/` | Filter sessions |
-| `Esc` | Clear filter / cancel |
-| `q` / `Ctrl+C` | Quit |
-
-## Layout
+Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attach, `q` to quit.
 
 ```
 ⚡ tmux sessions (3)
@@ -111,17 +102,43 @@ mux popup
 ↑↓/jk navigate  •  enter attach  •  n new  •  x kill  •  r rename  •  / filter  •  q quit
 ```
 
+The left panel shows your sessions. The right panel shows a **live preview** of the selected session's terminal output, updated every 500ms.
+
+### Popup mode (recommended)
+
+Open mux as a floating overlay inside tmux — works even while AI CLIs are running in the foreground.
+
+```bash
+# Set up the keybinding (one-time)
+mux setup-keybind          # prefix + m (default)
+mux setup-keybind Space    # or use a different key
+
+# Reload tmux config
+tmux source-file ~/.tmux.conf
+```
+
+You can also open the popup manually with `mux popup`.
+
+> **Note:** Popup mode requires tmux 3.2+
+
+### Keybindings
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Move down / up |
+| `g` / `G` | Jump to first / last |
+| `Enter` | Attach to selected session |
+| `n` | Create new session |
+| `r` | Rename session |
+| `x` | Delete session (with confirmation) |
+| `/` | Filter sessions by name or path |
+| `Esc` | Clear filter / cancel |
+| `q` | Quit |
+
 ## Requirements
 
-- Go 1.21+ (build only)
 - tmux (popup mode requires 3.2+)
 - Linux or macOS
-
-## Dependencies
-
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
-- [Bubbles](https://github.com/charmbracelet/bubbles) — TUI components
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Styling
 
 ## Contributing
 
