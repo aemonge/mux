@@ -2,7 +2,6 @@ package tmux
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -23,14 +22,14 @@ func resolveCommand(panePID int, rawCmd string) string {
 	}
 
 	// Scan child processes of the pane shell to find AI CLIs.
-	out, err := exec.Command("pgrep", "-P", fmt.Sprintf("%d", panePID)).Output()
+	out, err := runner.Output("pgrep", "-P", fmt.Sprintf("%d", panePID))
 	if err != nil {
 		return rawCmd
 	}
 
 	for _, pidStr := range strings.Fields(string(out)) {
 		// Get the full command line of each child process
-		args, err := exec.Command("ps", "-o", "args=", "-p", pidStr).Output()
+		args, err := runner.Output("ps", "-o", "args=", "-p", pidStr)
 		if err != nil {
 			continue
 		}

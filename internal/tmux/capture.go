@@ -2,13 +2,12 @@ package tmux
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
 // CapturePane returns the visible content of the active pane in the given session.
 func CapturePane(sessionName string) (string, error) {
-	out, err := exec.Command("tmux", "capture-pane", "-t", sessionName, "-p", "-e").Output()
+	out, err := runner.Output("tmux", "capture-pane", "-t", sessionName, "-p", "-e")
 	if err != nil {
 		return "", fmt.Errorf("capture pane %s: %w", sessionName, err)
 	}
