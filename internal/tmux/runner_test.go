@@ -48,6 +48,10 @@ func withMock(t *testing.T, fn func(m *mockRunner)) {
 	m := newMockRunner()
 	old := runner
 	SetRunner(m)
+	// Clear command cache to avoid cross-test interference
+	cmdCacheMu.Lock()
+	cmdCache = make(map[int]cachedCommand)
+	cmdCacheMu.Unlock()
 	defer func() { runner = old }()
 	fn(m)
 }
