@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+const (
+	popupWidth      = "85%"
+	popupHeight     = "80%"
+	minTmuxVersion  = 3.2
+	DefaultBindKey  = "m"
+)
+
 // OpenPopup opens mux inside a tmux display-popup overlay.
 // Must be called from inside a tmux session.
 func OpenPopup() error {
@@ -19,8 +26,8 @@ func OpenPopup() error {
 	if err != nil {
 		return fmt.Errorf("failed to detect tmux version: %w", err)
 	}
-	if version < 3.2 {
-		return fmt.Errorf("tmux 3.2+ required for popup (current: %.1f)", version)
+	if version < minTmuxVersion {
+		return fmt.Errorf("tmux %.1f+ required for popup (current: %.1f)", minTmuxVersion, version)
 	}
 
 	muxPath, err := os.Executable()
@@ -30,8 +37,8 @@ func OpenPopup() error {
 
 	cmd := exec.Command("tmux", "display-popup",
 		"-E",
-		"-w", "85%",
-		"-h", "80%",
+		"-w", popupWidth,
+		"-h", popupHeight,
 		muxPath,
 	)
 	cmd.Stdin = os.Stdin
@@ -53,7 +60,7 @@ func SetupKeybind(key string) error {
 	}
 
 	confPath := filepath.Join(home, ".tmux.conf")
-	bindLine := fmt.Sprintf(`bind %s display-popup -E -w 85%% -h 80%% "%s"`, key, muxPath)
+	bindLine := fmt.Sprintf(`bind %s display-popup -E -w %s -h %s "%s"`, key, popupWidth, popupHeight, muxPath)
 	marker := "# mux popup keybinding"
 
 	// Read existing config

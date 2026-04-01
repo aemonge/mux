@@ -84,8 +84,8 @@ func shortenPath(path string) string {
 			path = "~" + path[len(home):]
 		}
 	}
-	if len(path) > 35 {
-		path = "..." + path[len(path)-32:]
+	if len(path) > maxPathDisplay {
+		path = "..." + path[len(path)-maxPathDisplay+3:]
 	}
 	return path
 }
