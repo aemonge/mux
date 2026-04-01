@@ -2,7 +2,6 @@ package tmux
 
 import (
 	"fmt"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,7 +12,7 @@ const listFormat = "#{session_name}|#{session_windows}|#{session_created}|#{sess
 
 // ListSessions returns all tmux sessions sorted by attached status and recent activity.
 func ListSessions() ([]Session, error) {
-	out, err := exec.Command("tmux", "list-sessions", "-F", listFormat).Output()
+	out, err := runner.Output("tmux", "list-sessions", "-F", listFormat)
 	if err != nil {
 		// tmux returns error when no server is running
 		if strings.Contains(err.Error(), "exit status") {
@@ -73,20 +72,20 @@ func parseLine(line string) (Session, error) {
 
 // CreateSession creates a new detached tmux session with the given name.
 func CreateSession(name string) error {
-	return exec.Command("tmux", "new-session", "-d", "-s", name).Run()
+	return runner.Run("tmux", "new-session", "-d", "-s", name)
 }
 
 // CreateSessionWithDir creates a new detached tmux session starting in the given directory.
 func CreateSessionWithDir(name, dir string) error {
-	return exec.Command("tmux", "new-session", "-d", "-s", name, "-c", dir).Run()
+	return runner.Run("tmux", "new-session", "-d", "-s", name, "-c", dir)
 }
 
 // KillSession destroys the tmux session with the given name.
 func KillSession(name string) error {
-	return exec.Command("tmux", "kill-session", "-t", name).Run()
+	return runner.Run("tmux", "kill-session", "-t", name)
 }
 
 // RenameSession renames a tmux session from oldName to newName.
 func RenameSession(oldName, newName string) error {
-	return exec.Command("tmux", "rename-session", "-t", oldName, newName).Run()
+	return runner.Run("tmux", "rename-session", "-t", oldName, newName)
 }
