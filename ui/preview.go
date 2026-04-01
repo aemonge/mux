@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lunemis/mux/internal/tmux"
+	"github.com/lunemis/mux/tmux"
 )
 
 func renderPreview(session *tmux.Session, captured string, width, height int) string {

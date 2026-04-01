@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/lunemis/mux/internal/tmux"
+	"github.com/lunemis/mux/tmux"
 )
 
 type confirmKillModel struct {

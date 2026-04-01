@@ -6,7 +6,8 @@ before:
     - go test ./...
 
 builds:
-  - binary: mux
+  - main: ./cmd/mux
+    binary: mux
     env:
       - CGO_ENABLED=0
     goos:
