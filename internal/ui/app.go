@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lunemis/mux/internal/tmux"
@@ -50,11 +49,12 @@ type Model struct {
 	width          int
 	height         int
 	err            error
-	createModel    createModel
-	renameModel    renameModel
-	filterInput    textinput.Model
-	filterText     string
-	attachName     string // set when we want to attach after quitting
+	createModel      createModel
+	renameModel      renameModel
+	filterMod        filterModel
+	confirmKillMod   confirmKillModel
+	filterText       string
+	attachName       string // set when we want to attach after quitting
 	previewContent string // cached capture-pane output
 	previewSession string // session name the cache belongs to
 }
@@ -94,14 +94,7 @@ func refreshPreview(sessionName string) tea.Cmd {
 
 // NewModel returns a new Model with default settings.
 func NewModel() Model {
-	fi := textinput.New()
-	fi.Placeholder = "filter..."
-	fi.CharLimit = filterCharLimit
-	fi.Width = filterInputWidth
-
-	return Model{
-		filterInput: fi,
-	}
+	return Model{}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -142,6 +135,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionRenamedMsg:
 		m.mode = modeList
 		return m, loadSessions
+
+	case filterAppliedMsg:
+		m.mode = modeList
+		m.filterText = msg.text
+		m.applyFilter()
+		return m, nil
+
+	case sessionKilledMsg:
+		if msg.err != nil {
+			m.err = msg.err
+		}
+		m.mode = modeList
+		if msg.name != "" {
+			return m, loadSessions
+		}
+		return m, nil
 	}
 
 	switch m.mode {
@@ -206,6 +215,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "x":
 			if len(m.filtered) > 0 {
 				m.mode = modeConfirmKill
+				m.confirmKillMod = newConfirmKillModel(m.filtered[m.cursor].Name)
 			}
 
 		case "r":
@@ -217,8 +227,8 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "/":
 			m.mode = modeFilter
-			m.filterInput.SetValue(m.filterText)
-			return m, m.filterInput.Focus()
+			m.filterMod = newFilterModel(m.filterText)
+			return m, nil
 
 		case "esc":
 			if m.filterText != "" {
@@ -257,47 +267,18 @@ func (m Model) updateRename(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateFilter(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc":
-			m.mode = modeList
-			m.filterText = ""
-			m.applyFilter()
-			return m, nil
-		case "enter":
-			m.mode = modeList
-			m.filterText = m.filterInput.Value()
-			m.applyFilter()
-			return m, nil
-		}
-	}
 	var cmd tea.Cmd
-	m.filterInput, cmd = m.filterInput.Update(msg)
+	m.filterMod, cmd = m.filterMod.Update(msg)
 	// Live filter as you type
-	m.filterText = m.filterInput.Value()
+	m.filterText = m.filterMod.LiveText()
 	m.applyFilter()
 	return m, cmd
 }
 
 func (m Model) updateConfirmKill(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "y", "Y":
-			if m.cursor < len(m.filtered) {
-				name := m.filtered[m.cursor].Name
-				if err := tmux.KillSession(name); err != nil {
-					m.err = err
-				}
-			}
-			m.mode = modeList
-			return m, loadSessions
-		default:
-			m.mode = modeList
-		}
-	}
-	return m, nil
+	var cmd tea.Cmd
+	m.confirmKillMod, cmd = m.confirmKillMod.Update(msg)
+	return m, cmd
 }
 
 func (m *Model) currentSessionName() string {
@@ -351,10 +332,9 @@ func (m Model) viewMain() string {
 	// Filter / confirm bar
 	var extraBar string
 	if m.mode == modeFilter {
-		extraBar = inputLabelStyle.Render("/ ") + m.filterInput.View()
-	} else if m.mode == modeConfirmKill && m.cursor < len(m.filtered) {
-		extraBar = errorStyle.Render(
-			fmt.Sprintf("Kill \"%s\"? (y/N)", m.filtered[m.cursor].Name))
+		extraBar = m.filterMod.View()
+	} else if m.mode == modeConfirmKill {
+		extraBar = m.confirmKillMod.View()
 	} else if m.filterText != "" {
 		extraBar = helpStyle.Render(fmt.Sprintf("filter: %s (esc clear)", m.filterText))
 	}
