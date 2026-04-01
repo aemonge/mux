@@ -24,7 +24,7 @@ func main() {
 			}
 			return
 		case "setup-keybind":
-			key := "m" // default
+			key := tmux.DefaultBindKey
 			if len(os.Args) > 2 {
 				key = os.Args[2]
 			}

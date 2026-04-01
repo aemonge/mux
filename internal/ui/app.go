@@ -15,6 +15,22 @@ import (
 	"github.com/lunemis/mux/internal/tmux"
 )
 
+const (
+	// Layout
+	listWidthPercent = 2  // numerator of 5 (40%)
+	listWidthDenom   = 5  // denominator
+	minPanelHeight   = 5
+
+	// Timing
+	refreshInterval = 500 * time.Millisecond
+
+	// Display limits
+	maxSessionNameDisplay = 18
+	maxPathDisplay        = 35
+	filterCharLimit       = 50
+	filterInputWidth      = 30
+)
+
 type mode int
 
 const (
@@ -46,7 +62,7 @@ type Model struct {
 type tickMsg time.Time
 
 func tick() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -80,8 +96,8 @@ func refreshPreview(sessionName string) tea.Cmd {
 func NewModel() Model {
 	fi := textinput.New()
 	fi.Placeholder = "filter..."
-	fi.CharLimit = 50
-	fi.Width = 30
+	fi.CharLimit = filterCharLimit
+	fi.Width = filterInputWidth
 
 	return Model{
 		filterInput: fi,
@@ -351,12 +367,12 @@ func (m Model) viewMain() string {
 
 	// Panel height = total height for both borders + content
 	panelHeight := m.height - chrome
-	if panelHeight < 5 {
-		panelHeight = 5
+	if panelHeight < minPanelHeight {
+		panelHeight = minPanelHeight
 	}
 
-	// Layout: list on left (40%), preview on right (60%)
-	listWidth := m.width * 2 / 5
+	// Layout: list on left, preview on right
+	listWidth := m.width * listWidthPercent / listWidthDenom
 	previewWidth := m.width - listWidth
 
 	// Render both panels (each returns exactly panelHeight lines)

@@ -61,8 +61,8 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 	}
 
 	name := s.Name
-	if len(name) > 18 {
-		name = name[:15] + "..."
+	if len(name) > maxSessionNameDisplay {
+		name = name[:maxSessionNameDisplay-3] + "..."
 	}
 
 	ago := timeAgo(s.Created)
