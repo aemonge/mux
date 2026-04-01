@@ -65,17 +65,12 @@ func renderPreview(session *tmux.Session, captured string, width, height int) st
 }
 
 func aiLabel(cmd string) string {
-	switch cmd {
-	case "claude":
-		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Bold(true).Render("✦ claude")
-	case "codex":
-		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA")).Bold(true).Render("◈ codex")
-	case "aider":
-		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Bold(true).Render("⬡ aider")
-	case "gemini":
-		return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).Bold(true).Render("✧ gemini")
+	tool, ok := tmux.LookupAITool(cmd)
+	if !ok {
+		return ""
 	}
-	return ""
+	label := tool.Icon + " " + tool.Name
+	return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(label)
 }
 
 func shortenPath(path string) string {

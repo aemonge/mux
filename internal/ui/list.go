@@ -83,18 +83,10 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 // commandIcon returns a short icon string (with trailing space) for known AI CLIs,
 // or two spaces for anything else, keeping column widths consistent.
 func commandIcon(cmd string) string {
-	switch cmd {
-	case "claude":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Render("✦") + " "
-	case "codex":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#60A5FA")).Render("◈") + " "
-	case "aider":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#34D399")).Render("⬡") + " "
-	case "gemini":
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).Render("✧") + " "
-	default:
-		return "  "
+	if tool, ok := tmux.LookupAITool(cmd); ok {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Render(tool.Icon) + " "
 	}
+	return "  "
 }
 
 func centerText(s string, width int) string {

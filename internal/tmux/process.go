@@ -7,15 +7,6 @@ import (
 	"strings"
 )
 
-// IsAICommand reports whether cmd is a known AI CLI process.
-func IsAICommand(cmd string) bool {
-	switch cmd {
-	case "claude", "codex", "aider", "gemini":
-		return true
-	}
-	return false
-}
-
 // resolveCommand returns the logical command name for a pane.
 // It always inspects child processes of the pane shell to detect AI CLIs,
 // because tmux pane_current_command can be unreliable (e.g. returning
