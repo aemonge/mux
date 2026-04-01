@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lunemis/mux/internal/tmux"
+	"github.com/lunemis/mux/tmux"
 )
 
 func renderSessionList(sessions []tmux.Session, cursor int, filter string, width, height int) string {

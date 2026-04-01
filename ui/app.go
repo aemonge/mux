@@ -11,7 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lunemis/mux/internal/tmux"
+	"github.com/lunemis/mux/tmux"
 )
 
 const (
