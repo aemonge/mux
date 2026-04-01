@@ -32,10 +32,17 @@ func renderSessionList(sessions []tmux.Session, cursor int, filter string, width
 		return drawBorder(content, width, innerHeight)
 	}
 
+	// Calculate scroll offset to keep cursor visible
+	offset := 0
+	if cursor >= innerHeight {
+		offset = cursor - innerHeight + 1
+	}
+
 	lines := make([]string, innerHeight)
 	for i := 0; i < innerHeight; i++ {
-		if i < len(sessions) {
-			lines[i] = formatSessionRow(sessions[i], i == cursor, innerWidth)
+		idx := i + offset
+		if idx < len(sessions) {
+			lines[i] = formatSessionRow(sessions[idx], idx == cursor, innerWidth)
 		} else {
 			lines[i] = strings.Repeat(" ", innerWidth)
 		}
