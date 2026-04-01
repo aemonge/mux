@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +71,43 @@ func TestListPreviewSameHeight(t *testing.T) {
 
 	if listLines != previewLines {
 		t.Errorf("height mismatch: list=%d preview=%d", listLines, previewLines)
+	}
+}
+
+func TestSessionListScrolling(t *testing.T) {
+	// Create more sessions than can fit in a small viewport
+	sessions := make([]tmux.Session, 20)
+	for i := range sessions {
+		sessions[i] = tmux.Session{
+			Name:    fmt.Sprintf("session-%02d", i),
+			Windows: 1,
+			Created: time.Now(),
+		}
+	}
+
+	width := 60
+	height := 10 // innerHeight = 8, so only 8 sessions visible
+
+	// Cursor at 0: first session should be visible
+	out := renderSessionList(sessions, 0, "", width, height)
+	if !strings.Contains(out, "session-00") {
+		t.Error("cursor=0: expected session-00 to be visible")
+	}
+
+	// Cursor at 15: should scroll so session-15 is visible
+	out = renderSessionList(sessions, 15, "", width, height)
+	if !strings.Contains(out, "session-15") {
+		t.Error("cursor=15: expected session-15 to be visible")
+	}
+	// session-00 should be scrolled out
+	if strings.Contains(out, "session-00") {
+		t.Error("cursor=15: expected session-00 to be scrolled out")
+	}
+
+	// Cursor at last session
+	out = renderSessionList(sessions, 19, "", width, height)
+	if !strings.Contains(out, "session-19") {
+		t.Error("cursor=19: expected session-19 to be visible")
 	}
 }
 
