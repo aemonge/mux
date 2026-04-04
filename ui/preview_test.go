@@ -55,7 +55,7 @@ func TestAiLabel(t *testing.T) {
 }
 
 func TestRenderPreviewNilSession(t *testing.T) {
-	output := renderPreview(nil, "", 40, 10)
+	output := renderPreview(nil, "", 40, 10, 0, nil)
 	if !strings.Contains(output, "No session selected") {
 		t.Error("nil session should show 'No session selected'")
 	}

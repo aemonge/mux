@@ -45,11 +45,53 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(popupCmd, setupKeybindCmd)
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show AI session summary for tmux statusbar",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runStatus()
+		},
+	}
+
+	rootCmd.AddCommand(popupCmd, setupKeybindCmd, statusCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func runStatus() error {
+	sessions, err := tmux.ListSessions()
+	if err != nil {
+		return err
+	}
+
+	var parts []string
+	for _, s := range sessions {
+		tool, ok := tmux.LookupAITool(s.ActiveCommand)
+		if !ok {
+			continue
+		}
+		parts = append(parts, tool.Icon)
+	}
+
+	if len(parts) == 0 {
+		return nil // no AI sessions, output nothing
+	}
+
+	fmt.Print(fmt.Sprintf(" %s ", joinWith(parts, " ")))
+	return nil
+}
+
+func joinWith(parts []string, sep string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += sep
+		}
+		result += p
+	}
+	return result
 }
 
 func runTUI(cmd *cobra.Command, args []string) error {

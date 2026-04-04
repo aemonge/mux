@@ -9,7 +9,7 @@ import (
 	"github.com/lunemis/mux/tmux"
 )
 
-func renderPreview(session *tmux.Session, captured string, width, height int) string {
+func renderPreview(session *tmux.Session, captured string, width, height int, status tmux.AgentStatus, tokenUsage *tmux.TokenUsage) string {
 	innerWidth := width - 2
 	innerHeight := height - 2
 
@@ -30,14 +30,25 @@ func renderPreview(session *tmux.Session, captured string, width, height int) st
 
 	// Header
 	badge := aiLabel(session.ActiveCommand)
-	header := fmt.Sprintf("[ %s ]  %s%s", session.Name, shortenPath(session.Directory), badge)
+	statusBadge := statusLabel(status)
+	header := fmt.Sprintf("[ %s ]  %s%s%s", session.Name, shortenPath(session.Directory), badge, statusBadge)
 	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(
 		padOrTruncate(header, innerWidth))
 	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(
 		strings.Repeat("─", innerWidth))
 
-	// Available lines for content (minus header + separator)
-	contentLines := innerHeight - 2
+	// Token usage line (optional)
+	var tokenLine string
+	if tokenUsage != nil {
+		tokenLine = formatTokenLine(tokenUsage, innerWidth)
+	}
+
+	// Available lines for content (minus header + separator + optional token line)
+	headerLines := 2
+	if tokenLine != "" {
+		headerLines = 3
+	}
+	contentLines := innerHeight - headerLines
 	if contentLines < 1 {
 		contentLines = 1
 	}
@@ -48,15 +59,22 @@ func renderPreview(session *tmux.Session, captured string, width, height int) st
 		capLines = capLines[len(capLines)-contentLines:]
 	}
 
-	// Build all lines: header, separator, then content
+	// Build all lines: header, [token], separator, then content
 	allLines := make([]string, innerHeight)
-	allLines[0] = headerStyled
-	allLines[1] = separator
+	lineIdx := 0
+	allLines[lineIdx] = headerStyled
+	lineIdx++
+	if tokenLine != "" {
+		allLines[lineIdx] = tokenLine
+		lineIdx++
+	}
+	allLines[lineIdx] = separator
+	lineIdx++
 	for i := 0; i < contentLines; i++ {
 		if i < len(capLines) {
-			allLines[i+2] = padOrTruncate(capLines[i], innerWidth)
+			allLines[lineIdx+i] = padOrTruncate(capLines[i], innerWidth)
 		} else {
-			allLines[i+2] = strings.Repeat(" ", innerWidth)
+			allLines[lineIdx+i] = strings.Repeat(" ", innerWidth)
 		}
 	}
 
@@ -71,6 +89,34 @@ func aiLabel(cmd string) string {
 	}
 	label := tool.Icon + " " + tool.Name
 	return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(label)
+}
+
+func statusLabel(s tmux.AgentStatus) string {
+	icon := tmux.StatusIcon(s)
+	if icon == "" {
+		return ""
+	}
+	label := tmux.StatusLabel(s)
+	var color lipgloss.Color
+	switch s {
+	case tmux.StatusThinking:
+		color = lipgloss.Color("#FBBF24") // yellow
+	case tmux.StatusPermission:
+		color = lipgloss.Color("#EF4444") // red
+	default:
+		return ""
+	}
+	return "  " + lipgloss.NewStyle().Foreground(color).Bold(true).Render(icon+" "+label)
+}
+
+func formatTokenLine(u *tmux.TokenUsage, width int) string {
+	text := fmt.Sprintf("  %s in / %s out  ~$%.2f",
+		tmux.FormatTokens(u.InputTokens),
+		tmux.FormatTokens(u.OutputTokens),
+		u.TotalCost)
+	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(
+		padOrTruncate(text, width))
+	return styled
 }
 
 func shortenPath(path string) string {

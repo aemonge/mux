@@ -33,11 +33,17 @@ See the actual terminal output of any session *before* you switch. No more guess
 <!-- TODO: screenshot of the main view with live preview panel visible -->
 <!-- ![Live preview](assets/preview.png) -->
 
-### AI CLI detection
-`claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
+### AI CLI detection & status
+`claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session. mux also detects the agent's current state (thinking, waiting for permission, idle) from terminal output.
 
 <!-- TODO: screenshot showing sessions with AI CLI badges (✦ claude, ◈ codex, etc.) -->
 <!-- ![AI CLI badges](assets/ai-badges.png) -->
+
+### Cost & token tracking
+For Claude Code sessions, mux reads session logs to display real-time token usage and estimated cost — no configuration needed.
+
+<!-- TODO: screenshot showing token/cost info in preview header -->
+<!-- ![Cost tracking](assets/cost-tracking.png) -->
 
 ### Popup overlay
 Press one key to summon mux on top of whatever you're doing — even mid-conversation with an AI CLI. Pick a session and you're there.
@@ -51,7 +57,11 @@ Press one key to summon mux on top of whatever you're doing — even mid-convers
 ## Quick Start
 
 ```bash
-brew install lunemis/tap/mux   # or: go install github.com/lunemis/mux@latest
+# One-line interactive installer (recommended)
+curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash
+
+# Or install manually
+brew install lunemis/tap/mux   # or: go install github.com/lunemis/mux/cmd/mux@latest
 mux                             # launch the session manager
 ```
 
@@ -65,6 +75,20 @@ tmux source-file ~/.tmux.conf   # reload config
 Now press `Ctrl+b` then `m` anywhere in tmux to open mux.
 
 ## Installation
+
+### Interactive installer (recommended)
+
+The installer guides you through binary installation, keybinding setup, and optional AI tool hook configuration:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash
+```
+
+To set up hooks later:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash -s -- --hooks-only
+```
 
 ### Homebrew
 
@@ -83,7 +107,7 @@ make install   # builds and installs to /usr/local/bin
 ### Go install
 
 ```bash
-go install github.com/lunemis/mux@latest
+go install github.com/lunemis/mux/cmd/mux@latest
 ```
 
 ## Usage
@@ -120,6 +144,17 @@ tmux source-file ~/.tmux.conf
 You can also open the popup manually with `mux popup`.
 
 > **Note:** Popup mode requires tmux 3.2+
+
+### Statusbar widget
+
+Show AI session icons in your tmux status bar without opening the TUI:
+
+```bash
+# Add to ~/.tmux.conf
+set -g status-right '#(mux status)'
+```
+
+This runs `mux status` which outputs a compact summary like `✦ ◈` when AI sessions are active.
 
 ### Keybindings
 
