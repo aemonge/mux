@@ -67,24 +67,31 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	ago := timeAgo(s.Created)
 
-	// AI command icon
-	icon := commandIcon(s.ActiveCommand)
+	// Build the text portion without the icon (no ANSI codes yet)
+	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
 
-	raw := fmt.Sprintf(" %s %-18s %s %s", status, name, ago, icon)
+	// AI command icon (contains ANSI color codes — append after truncation to avoid clipping)
+	icon := commandIcon(s.ActiveCommand)
+	iconWidth := 2 // icon + trailing space, or two spaces for non-AI
+
+	// Truncate/pad the text portion, leaving room for the icon
+	textWidth := width - iconWidth
+	if textWidth < 0 {
+		textWidth = 0
+	}
+	row := padOrTruncate(text, textWidth) + icon
 
 	if selected {
-		styled := lipgloss.NewStyle().
+		return lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colorCursor).
 			Background(colorSelected).
-			Render(padOrTruncate(raw, width))
-		return styled
+			Render(row)
 	}
 
-	styled := lipgloss.NewStyle().
+	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#9CA3AF")).
-		Render(padOrTruncate(raw, width))
-	return styled
+		Render(row)
 }
 
 // commandIcon returns a short icon string (with trailing space) for known AI CLIs,
