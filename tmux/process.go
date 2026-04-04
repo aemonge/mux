@@ -53,12 +53,12 @@ func resolveCommand(panePID int, rawCmd string) string {
 // scanChildProcesses inspects child processes of the pane shell to detect AI CLIs.
 // Works on both Linux and macOS using pgrep/ps.
 func scanChildProcesses(panePID int, rawCmd string) string {
-	out, err := runner.Output("pgrep", "-P", fmt.Sprintf("%d", panePID))
-	if err != nil {
+	childPIDs := findChildPIDs(panePID)
+	if len(childPIDs) == 0 {
 		return rawCmd
 	}
 
-	for _, pidStr := range strings.Fields(string(out)) {
+	for _, pidStr := range childPIDs {
 		args, err := runner.Output("ps", "-o", "args=", "-p", pidStr)
 		if err != nil {
 			continue
@@ -71,4 +71,33 @@ func scanChildProcesses(panePID int, rawCmd string) string {
 		}
 	}
 	return rawCmd
+}
+
+// findChildPIDs returns child PIDs of the given parent.
+// Tries pgrep first, falls back to ps -eo pid,ppid for macOS compatibility.
+func findChildPIDs(parentPID int) []string {
+	pidStr := fmt.Sprintf("%d", parentPID)
+
+	// Try pgrep first (works reliably on Linux)
+	out, err := runner.Output("pgrep", "-P", pidStr)
+	if err == nil {
+		if fields := strings.Fields(string(out)); len(fields) > 0 {
+			return fields
+		}
+	}
+
+	// Fallback: ps -eo pid,ppid (more reliable on macOS)
+	out, err = runner.Output("ps", "-eo", "pid,ppid")
+	if err != nil {
+		return nil
+	}
+
+	var children []string
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[1] == pidStr {
+			children = append(children, fields[0])
+		}
+	}
+	return children
 }
