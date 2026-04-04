@@ -38,19 +38,24 @@ func TestShortenPathTruncatesLong(t *testing.T) {
 	}
 }
 
-func TestAiLabel(t *testing.T) {
+func TestAiLabelPlain(t *testing.T) {
 	// Known commands should return non-empty
 	for _, cmd := range []string{"claude", "codex", "aider", "gemini"} {
-		if label := aiLabel(cmd); label == "" {
-			t.Errorf("aiLabel(%q) returned empty string", cmd)
+		info := aiLabelPlain(cmd)
+		if info.styled == "" {
+			t.Errorf("aiLabelPlain(%q) returned empty styled", cmd)
+		}
+		if info.text == "" {
+			t.Errorf("aiLabelPlain(%q) returned empty text", cmd)
+		}
+		if info.extraWidth != 1 {
+			t.Errorf("aiLabelPlain(%q) extraWidth = %d, want 1", cmd, info.extraWidth)
 		}
 	}
 	// Unknown commands should return empty
-	if label := aiLabel("bash"); label != "" {
-		t.Errorf("aiLabel(%q) = %q, want empty", "bash", label)
-	}
-	if label := aiLabel(""); label != "" {
-		t.Errorf("aiLabel(%q) = %q, want empty", "", label)
+	info := aiLabelPlain("bash")
+	if info.styled != "" {
+		t.Errorf("aiLabelPlain(%q) styled = %q, want empty", "bash", info.styled)
 	}
 }
 

@@ -53,11 +53,9 @@ func renderSessionList(sessions []tmux.Session, cursor int, filter string, width
 }
 
 func formatSessionRow(s tmux.Session, selected bool, width int) string {
-	var status string
+	status := "○"
 	if s.Attached {
-		status = "●"
-	} else {
-		status = "○"
+		status = "*"
 	}
 
 	name := s.Name
@@ -67,19 +65,28 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	ago := timeAgo(s.Created)
 
-	// Build the text portion without the icon (no ANSI codes yet)
-	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
+	// AI command icon — plain text, styled later to avoid ANSI truncation issues.
+	// Ambiguous-width icons (✦ etc.) render as 2 cells in most terminals
+	// but ansi.StringWidth reports 1, so we reserve extra space.
+	icon, iconColor := commandIconPlain(s.ActiveCommand)
+	iconReserved := 3 // icon(2 cells) + space(1), or 3 spaces for non-AI
 
-	// AI command icon (contains ANSI color codes — append after truncation to avoid clipping)
-	icon := commandIcon(s.ActiveCommand)
-	iconWidth := 2 // icon + trailing space, or two spaces for non-AI
-
-	// Truncate/pad the text portion, leaving room for the icon
-	textWidth := width - iconWidth
+	textWidth := width - iconReserved
 	if textWidth < 0 {
 		textWidth = 0
 	}
-	row := padOrTruncate(text, textWidth) + icon
+	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
+	paddedText := padOrTruncate(text, textWidth)
+
+	// Build styled icon separately
+	var styledIcon string
+	if iconColor != "" {
+		styledIcon = lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Render(icon) + " "
+	} else {
+		styledIcon = "   "
+	}
+
+	row := paddedText + styledIcon
 
 	if selected {
 		return lipgloss.NewStyle().
@@ -94,13 +101,13 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 		Render(row)
 }
 
-// commandIcon returns a short icon string (with trailing space) for known AI CLIs,
-// or two spaces for anything else, keeping column widths consistent.
-func commandIcon(cmd string) string {
+// commandIconPlain returns the raw icon and its color for known AI CLIs.
+// Returns empty strings for non-AI commands.
+func commandIconPlain(cmd string) (icon string, color string) {
 	if tool, ok := tmux.LookupAITool(cmd); ok {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Render(tool.Icon) + " "
+		return tool.Icon, tool.Color
 	}
-	return "  "
+	return "", ""
 }
 
 func centerText(s string, width int) string {

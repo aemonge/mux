@@ -28,12 +28,24 @@ func renderPreview(session *tmux.Session, captured string, width, height int, st
 		return drawBorder(content, width, innerHeight)
 	}
 
-	// Header
-	badge := aiLabel(session.ActiveCommand)
-	statusBadge := statusLabel(status)
-	header := fmt.Sprintf("[ %s ]  %s%s%s", session.Name, shortenPath(session.Directory), badge, statusBadge)
-	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(
-		padOrTruncate(header, innerWidth))
+	// Header: build plain text first, then append styled badges after padding
+	// to prevent ANSI codes and ambiguous-width icons from being clipped.
+	badge := aiLabelPlain(session.ActiveCommand)
+	statusBadge := statusLabelPlain(status)
+	suffixPlain := badge.text + statusBadge.text
+	// Each ambiguous-width icon takes 2 cells but ansi.StringWidth reports 1
+	suffixExtra := badge.extraWidth + statusBadge.extraWidth
+
+	headerText := fmt.Sprintf("[ %s ]  %s", session.Name, shortenPath(session.Directory))
+	headerWidth := innerWidth - len(suffixPlain) - suffixExtra
+	if headerWidth < 0 {
+		headerWidth = 0
+	}
+	headerPadded := padOrTruncate(headerText, headerWidth)
+
+	// Now build the styled suffix
+	styledSuffix := badge.styled + statusBadge.styled
+	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(headerPadded) + styledSuffix
 	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(
 		strings.Repeat("─", innerWidth))
 
@@ -82,19 +94,29 @@ func renderPreview(session *tmux.Session, captured string, width, height int, st
 	return drawBorder(content, width, innerHeight)
 }
 
-func aiLabel(cmd string) string {
-	tool, ok := tmux.LookupAITool(cmd)
-	if !ok {
-		return ""
-	}
-	label := tool.Icon + " " + tool.Name
-	return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(label)
+// labelInfo holds both the styled and plain-text versions of a badge,
+// plus extra width to compensate for ambiguous-width Unicode characters
+// that terminals render as 2 cells but ansi.StringWidth measures as 1.
+type labelInfo struct {
+	text       string // plain text for width calculation (e.g. "  ✦ claude")
+	styled     string // ANSI-styled version for display
+	extraWidth int    // extra cells for ambiguous-width chars (1 per icon)
 }
 
-func statusLabel(s tmux.AgentStatus) string {
+func aiLabelPlain(cmd string) labelInfo {
+	tool, ok := tmux.LookupAITool(cmd)
+	if !ok {
+		return labelInfo{}
+	}
+	text := "  " + tool.Icon + " " + tool.Name
+	styled := "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(tool.Icon+" "+tool.Name)
+	return labelInfo{text: text, styled: styled, extraWidth: 1}
+}
+
+func statusLabelPlain(s tmux.AgentStatus) labelInfo {
 	icon := tmux.StatusIcon(s)
 	if icon == "" {
-		return ""
+		return labelInfo{}
 	}
 	label := tmux.StatusLabel(s)
 	var color lipgloss.Color
@@ -104,9 +126,11 @@ func statusLabel(s tmux.AgentStatus) string {
 	case tmux.StatusPermission:
 		color = lipgloss.Color("#EF4444") // red
 	default:
-		return ""
+		return labelInfo{}
 	}
-	return "  " + lipgloss.NewStyle().Foreground(color).Bold(true).Render(icon+" "+label)
+	text := "  " + icon + " " + label
+	styled := "  " + lipgloss.NewStyle().Foreground(color).Bold(true).Render(icon+" "+label)
+	return labelInfo{text: text, styled: styled, extraWidth: 1}
 }
 
 func formatTokenLine(u *tmux.TokenUsage, width int) string {
