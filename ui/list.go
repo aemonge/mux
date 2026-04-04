@@ -70,7 +70,7 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 	// AI command icon
 	icon := commandIcon(s.ActiveCommand)
 
-	raw := fmt.Sprintf(" %s %-18s %s %s%dw", status, name, ago, icon, s.Windows)
+	raw := fmt.Sprintf(" %s %-18s %s %s", status, name, ago, icon)
 
 	if selected {
 		styled := lipgloss.NewStyle().
