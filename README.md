@@ -33,17 +33,17 @@ See the actual terminal output of any session *before* you switch. No more guess
 <!-- TODO: screenshot of the main view with live preview panel visible -->
 <!-- ![Live preview](assets/preview.png) -->
 
-### AI CLI detection & status
-`claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session. mux also detects the agent's current state (thinking, waiting for permission, idle) from terminal output.
+### AI CLI detection
+`claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
 
 <!-- TODO: screenshot showing sessions with AI CLI badges (✦ claude, ◈ codex, etc.) -->
 <!-- ![AI CLI badges](assets/ai-badges.png) -->
 
+### Git branch & worktree display
+Each session shows the current git branch. Worktrees are marked with `⌥⌥` so you can tell at a glance which sessions are working on isolated branches.
+
 ### Cost & token tracking
 For Claude Code sessions, mux reads session logs to display real-time token usage and estimated cost — no configuration needed.
-
-<!-- TODO: screenshot showing token/cost info in preview header -->
-<!-- ![Cost tracking](assets/cost-tracking.png) -->
 
 ### Popup overlay
 Press one key to summon mux on top of whatever you're doing — even mid-conversation with an AI CLI. Pick a session and you're there.
@@ -78,16 +78,10 @@ Now press `Ctrl+b` then `m` anywhere in tmux to open mux.
 
 ### Interactive installer (recommended)
 
-The installer guides you through binary installation, keybinding setup, and optional AI tool hook configuration:
+The installer guides you through binary installation and keybinding setup:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash
-```
-
-To set up hooks later:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash -s -- --hooks-only
 ```
 
 ### Homebrew
@@ -118,15 +112,16 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attac
 
 ```
 ⚡ tmux sessions (3)
-┌─────────────────┐┌──────────────────────────────────────┐
-│ ● my-project    ││ [ my-project ]  ~/dev/project  ✦ claude│
-│   dev-server    ││ ─────────────────────────────────────  │
-│   dotfiles      ││ ...terminal output preview...          │
-└─────────────────┘└──────────────────────────────────────┘
+┌──────────────────────────┐┌──────────────────────────────────────────┐
+│ * my-project    2h ✦ main ││ [ my-project ]  ~/dev/project  ✦ claude  │
+│   dev-server    3h        ││   45.2k in / 12.1k out  ~$0.85           │
+│   dotfiles      1d   main ││ ──────────────────────────────────────── │
+│                            ││ ...terminal output preview...            │
+└──────────────────────────┘└──────────────────────────────────────────┘
 ↑↓/jk navigate  •  enter attach  •  n new  •  x kill  •  r rename  •  / filter  •  q quit
 ```
 
-The left panel shows your sessions. The right panel shows a **live preview** of the selected session's terminal output, updated every 500ms.
+The left panel shows your sessions with AI badges and git branches. The right panel shows a **live preview** of the selected session's terminal output, updated every 500ms.
 
 ### Popup mode (recommended)
 
