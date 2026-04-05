@@ -9,7 +9,7 @@ import (
 	"github.com/lunemis/mux/tmux"
 )
 
-func renderPreview(session *tmux.Session, captured string, width, height int) string {
+func renderPreview(session *tmux.Session, captured string, width, height int, tokenUsage *tmux.TokenUsage) string {
 	innerWidth := width - 2
 	innerHeight := height - 2
 
@@ -28,16 +28,33 @@ func renderPreview(session *tmux.Session, captured string, width, height int) st
 		return drawBorder(content, width, innerHeight)
 	}
 
-	// Header
-	badge := aiLabel(session.ActiveCommand)
-	header := fmt.Sprintf("[ %s ]  %s%s", session.Name, shortenPath(session.Directory), badge)
-	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(
-		padOrTruncate(header, innerWidth))
+	// Header: build plain text first, then append styled badge after padding
+	// to prevent ANSI codes and ambiguous-width icons from being clipped.
+	badge := aiLabelPlain(session.ActiveCommand)
+
+	headerText := fmt.Sprintf("[ %s ]  %s", session.Name, shortenPath(session.Directory))
+	headerWidth := innerWidth - len(badge.text) - badge.extraWidth
+	if headerWidth < 0 {
+		headerWidth = 0
+	}
+	headerPadded := padOrTruncate(headerText, headerWidth)
+
+	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(headerPadded) + badge.styled
 	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(
 		strings.Repeat("─", innerWidth))
 
-	// Available lines for content (minus header + separator)
-	contentLines := innerHeight - 2
+	// Token usage line (optional)
+	var tokenLine string
+	if tokenUsage != nil {
+		tokenLine = formatTokenLine(tokenUsage, innerWidth)
+	}
+
+	// Available lines for content (minus header + separator + optional token line)
+	headerLines := 2
+	if tokenLine != "" {
+		headerLines = 3
+	}
+	contentLines := innerHeight - headerLines
 	if contentLines < 1 {
 		contentLines = 1
 	}
@@ -48,15 +65,22 @@ func renderPreview(session *tmux.Session, captured string, width, height int) st
 		capLines = capLines[len(capLines)-contentLines:]
 	}
 
-	// Build all lines: header, separator, then content
+	// Build all lines: header, [token], separator, then content
 	allLines := make([]string, innerHeight)
-	allLines[0] = headerStyled
-	allLines[1] = separator
+	lineIdx := 0
+	allLines[lineIdx] = headerStyled
+	lineIdx++
+	if tokenLine != "" {
+		allLines[lineIdx] = tokenLine
+		lineIdx++
+	}
+	allLines[lineIdx] = separator
+	lineIdx++
 	for i := 0; i < contentLines; i++ {
 		if i < len(capLines) {
-			allLines[i+2] = padOrTruncate(capLines[i], innerWidth)
+			allLines[lineIdx+i] = padOrTruncate(capLines[i], innerWidth)
 		} else {
-			allLines[i+2] = strings.Repeat(" ", innerWidth)
+			allLines[lineIdx+i] = strings.Repeat(" ", innerWidth)
 		}
 	}
 
@@ -64,13 +88,33 @@ func renderPreview(session *tmux.Session, captured string, width, height int) st
 	return drawBorder(content, width, innerHeight)
 }
 
-func aiLabel(cmd string) string {
+// labelInfo holds both the styled and plain-text versions of a badge,
+// plus extra width to compensate for ambiguous-width Unicode characters
+// that terminals render as 2 cells but ansi.StringWidth measures as 1.
+type labelInfo struct {
+	text       string // plain text for width calculation (e.g. "  ✦ claude")
+	styled     string // ANSI-styled version for display
+	extraWidth int    // extra cells for ambiguous-width chars (1 per icon)
+}
+
+func aiLabelPlain(cmd string) labelInfo {
 	tool, ok := tmux.LookupAITool(cmd)
 	if !ok {
-		return ""
+		return labelInfo{}
 	}
-	label := tool.Icon + " " + tool.Name
-	return "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(label)
+	text := "  " + tool.Icon + " " + tool.Name
+	styled := "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(tool.Icon+" "+tool.Name)
+	return labelInfo{text: text, styled: styled, extraWidth: 1}
+}
+
+func formatTokenLine(u *tmux.TokenUsage, width int) string {
+	text := fmt.Sprintf("  %s in / %s out  ~$%.2f",
+		tmux.FormatTokens(u.InputTokens),
+		tmux.FormatTokens(u.OutputTokens),
+		u.TotalCost)
+	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(
+		padOrTruncate(text, width))
+	return styled
 }
 
 func shortenPath(path string) string {

@@ -67,6 +67,7 @@ func parseLine(line string) (Session, error) {
 		Attached:      attached > 0,
 		Directory:     parts[4],
 		ActiveCommand: activeCommand,
+		PanePID:       panePID,
 	}, nil
 }
 

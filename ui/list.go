@@ -53,11 +53,9 @@ func renderSessionList(sessions []tmux.Session, cursor int, filter string, width
 }
 
 func formatSessionRow(s tmux.Session, selected bool, width int) string {
-	var status string
+	status := "○"
 	if s.Attached {
-		status = "●"
-	} else {
-		status = "○"
+		status = "*"
 	}
 
 	name := s.Name
@@ -67,33 +65,45 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	ago := timeAgo(s.Created)
 
-	// AI command icon
-	icon := commandIcon(s.ActiveCommand)
+	// AI command icon — placed right after time, styled separately.
+	// Ambiguous-width icons (✦ etc.) render as 2 cells in most terminals
+	// but ansi.StringWidth reports 1, so we account for the extra cell.
+	icon, iconColor := commandIconPlain(s.ActiveCommand)
+	var styledIcon string
+	if iconColor != "" {
+		styledIcon = " " + lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Render(icon)
+	}
 
-	raw := fmt.Sprintf(" %s %-18s %s %s%dw", status, name, ago, icon, s.Windows)
+	// Build text with icon inline after time, then pad the whole row
+	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
+	text += styledIcon
+	// Compensate: icon char is 2 cells wide but measured as 1
+	extraWidth := 0
+	if iconColor != "" {
+		extraWidth = 1
+	}
+	row := padOrTruncate(text, width-extraWidth)
 
 	if selected {
-		styled := lipgloss.NewStyle().
+		return lipgloss.NewStyle().
 			Bold(true).
 			Foreground(colorCursor).
 			Background(colorSelected).
-			Render(padOrTruncate(raw, width))
-		return styled
+			Render(row)
 	}
 
-	styled := lipgloss.NewStyle().
+	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#9CA3AF")).
-		Render(padOrTruncate(raw, width))
-	return styled
+		Render(row)
 }
 
-// commandIcon returns a short icon string (with trailing space) for known AI CLIs,
-// or two spaces for anything else, keeping column widths consistent.
-func commandIcon(cmd string) string {
+// commandIconPlain returns the raw icon and its color for known AI CLIs.
+// Returns empty strings for non-AI commands.
+func commandIconPlain(cmd string) (icon string, color string) {
 	if tool, ok := tmux.LookupAITool(cmd); ok {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Render(tool.Icon) + " "
+		return tool.Icon, tool.Color
 	}
-	return "  "
+	return "", ""
 }
 
 func centerText(s string, width int) string {

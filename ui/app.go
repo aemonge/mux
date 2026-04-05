@@ -55,8 +55,10 @@ type Model struct {
 	confirmKillMod   confirmKillModel
 	filterText       string
 	attachName       string // set when we want to attach after quitting
-	previewContent string // cached capture-pane output
-	previewSession string // session name the cache belongs to
+	previewContent string           // cached capture-pane output
+	previewSession string           // session name the cache belongs to
+	tokenUsage     *tmux.TokenUsage // cached token usage for current AI session
+	tokenSession   string           // session name the token cache belongs to
 }
 
 type tickMsg time.Time
@@ -82,6 +84,11 @@ type previewLoadedMsg struct {
 	content     string
 }
 
+type tokenUsageLoadedMsg struct {
+	sessionName string
+	usage       *tmux.TokenUsage
+}
+
 func refreshPreview(sessionName string) tea.Cmd {
 	return func() tea.Msg {
 		content, err := tmux.CapturePane(sessionName)
@@ -89,6 +96,17 @@ func refreshPreview(sessionName string) tea.Cmd {
 			content = "Error: " + err.Error()
 		}
 		return previewLoadedMsg{sessionName: sessionName, content: content}
+	}
+}
+
+func loadTokenUsage(sessionName string, panePID int) tea.Cmd {
+	return func() tea.Msg {
+		sessionID, cwd, err := tmux.FindClaudeSession(panePID)
+		if err != nil {
+			return tokenUsageLoadedMsg{sessionName: sessionName}
+		}
+		usage, _ := tmux.LoadTokenUsage(sessionID, cwd)
+		return tokenUsageLoadedMsg{sessionName: sessionName, usage: usage}
 	}
 }
 
@@ -112,6 +130,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds := []tea.Cmd{loadSessions, tick()}
 		if name := m.currentSessionName(); name != "" {
 			cmds = append(cmds, refreshPreview(name))
+			// Load token usage for AI sessions
+			if idx := m.currentSessionIndex(); idx >= 0 {
+				s := m.filtered[idx]
+				if tmux.IsAICommand(s.ActiveCommand) {
+					cmds = append(cmds, loadTokenUsage(name, s.PanePID))
+				}
+			}
 		}
 		return m, tea.Batch(cmds...)
 
@@ -126,6 +151,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case previewLoadedMsg:
 		m.previewSession = msg.sessionName
 		m.previewContent = msg.content
+		return m, nil
+
+	case tokenUsageLoadedMsg:
+		m.tokenSession = msg.sessionName
+		m.tokenUsage = msg.usage
 		return m, nil
 
 	case sessionCreatedMsg:
@@ -288,6 +318,13 @@ func (m *Model) currentSessionName() string {
 	return ""
 }
 
+func (m *Model) currentSessionIndex() int {
+	if m.cursor < len(m.filtered) {
+		return m.cursor
+	}
+	return -1
+}
+
 func (m *Model) applyFilter() {
 	if m.filterText == "" {
 		m.filtered = m.sessions
@@ -366,7 +403,11 @@ func (m Model) viewMain() string {
 	if currentSession != nil && m.previewSession == currentSession.Name {
 		cachedContent = m.previewContent
 	}
-	preview := renderPreview(currentSession, cachedContent, previewWidth, panelHeight)
+	var tokenUsage *tmux.TokenUsage
+	if currentSession != nil && m.tokenSession == currentSession.Name {
+		tokenUsage = m.tokenUsage
+	}
+	preview := renderPreview(currentSession, cachedContent, previewWidth, panelHeight, tokenUsage)
 
 	// Join line-by-line for exact alignment
 	content := joinHorizontalFixed(list, preview)

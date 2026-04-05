@@ -8,23 +8,44 @@ tmux 세션을 터미널에서 빠르게 탐색하고 관리하는 TUI 도구입
 
 - **세션 목록** — 활성/비활성 세션을 최근 활동 순으로 정렬하여 표시
 - **실시간 프리뷰** — 선택한 세션의 터미널 출력을 우측 패널에 실시간으로 표시 (500ms 주기 갱신)
-- **AI CLI 감지** — 세션에서 `claude`, `codex`, `aider`, `gemini` 등의 AI CLI가 실행 중이면 배지로 표시
+- **AI CLI 감지 & 상태 표시** — 세션에서 `claude`, `codex`, `aider`, `gemini` 등의 AI CLI가 실행 중이면 배지로 표시하고, 에이전트 상태(thinking/permission/idle)를 자동 감지
+- **비용/토큰 추적** — Claude Code 세션의 토큰 사용량과 예상 비용을 실시간 표시 (설정 불필요)
 - **세션 생성/삭제/이름 변경** — TUI 내에서 모든 세션 관리 작업 가능
 - **퀵 필터** — `/` 키로 세션 이름 또는 경로를 실시간 필터링
 - **즉시 연결** — `Enter` 키로 선택한 세션에 바로 attach (tmux 내부에서는 `switch-client` 사용)
 
 ## 설치
 
+### 인터랙티브 설치 (추천)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash
+```
+
+나중에 hooks만 설정:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lunemis/mux/main/install.sh | bash -s -- --hooks-only
+```
+
+### Homebrew
+
+```bash
+brew install lunemis/tap/mux
+```
+
+### 소스에서 빌드
+
 ```bash
 git clone https://github.com/lunemis/mux.git
 cd mux
-go build -o mux .
+make install   # /usr/local/bin에 설치
 ```
 
-빌드된 바이너리를 PATH에 추가:
+### Go install
 
 ```bash
-mv mux /usr/local/bin/
+go install github.com/lunemis/mux/cmd/mux@latest
 ```
 
 ## 사용법
@@ -61,6 +82,17 @@ mux popup
 ```
 
 > **참고:** tmux 3.2 이상 필요 (`tmux -V`로 확인)
+
+### 상태바 위젯
+
+tmux 상태바에서 AI 세션 아이콘을 표시:
+
+```bash
+# ~/.tmux.conf에 추가
+set -g status-right '#(mux status)'
+```
+
+AI 세션이 활성화되면 `✦ ◈` 같은 아이콘이 상태바에 표시됩니다.
 
 ### 키바인딩
 

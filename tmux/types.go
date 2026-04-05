@@ -13,4 +13,5 @@ type Session struct {
 	Attached      bool
 	Directory     string
 	ActiveCommand string
+	PanePID       int
 }
