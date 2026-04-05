@@ -74,9 +74,15 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 		styledIcon = " " + lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Render(icon)
 	}
 
-	// Build text with icon inline after time, then pad the whole row
+	// Git branch
+	branch := ""
+	if s.GitBranch != "" {
+		branch = " " + s.GitBranch
+	}
+
+	// Build text with icon inline after time, then branch, then pad
 	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
-	text += styledIcon
+	text += styledIcon + branch
 	// Compensate: icon char is 2 cells wide but measured as 1
 	extraWidth := 0
 	if iconColor != "" {

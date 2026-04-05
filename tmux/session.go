@@ -58,6 +58,7 @@ func parseLine(line string) (Session, error) {
 	panePID, _ := strconv.Atoi(parts[7])
 
 	activeCommand := resolveCommand(panePID, parts[6])
+	gitInfo := LookupGitInfo(parts[4])
 
 	return Session{
 		Name:          parts[0],
@@ -68,6 +69,8 @@ func parseLine(line string) (Session, error) {
 		Directory:     parts[4],
 		ActiveCommand: activeCommand,
 		PanePID:       panePID,
+		GitBranch:     gitInfo.Branch,
+		IsWorktree:    gitInfo.IsWorktree,
 	}, nil
 }
 
