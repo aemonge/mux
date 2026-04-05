@@ -4,17 +4,11 @@ set -euo pipefail
 REPO="lunemis/mux"
 BINARY="mux"
 INSTALL_DIR="/usr/local/bin"
-HOOKS_ONLY=false
-
 # Parse flags
 for arg in "$@"; do
     case "$arg" in
-        --hooks-only) HOOKS_ONLY=true ;;
         --help|-h)
-            echo "Usage: install.sh [--hooks-only]"
-            echo ""
-            echo "Options:"
-            echo "  --hooks-only   Only set up AI tool hooks (skip binary/keybind)"
+            echo "Usage: install.sh"
             exit 0
             ;;
     esac
@@ -133,157 +127,25 @@ setup_keybind() {
     fi
 }
 
-setup_claude_hooks() {
-    info "Setting up Claude Code hooks..."
-
-    local settings="${HOME}/.claude/settings.json"
-
-    if [ ! -d "${HOME}/.claude" ]; then
-        warn "~/.claude directory not found. Is Claude Code installed?"
-        return
-    fi
-
-    # Install hook script
-    local hook_dir="${HOME}/.claude/hooks"
-    mkdir -p "$hook_dir"
-    local hook_script="${hook_dir}/mux-status.sh"
-
-    # Find the hook script from the mux installation
-    local src_script=""
-    if command -v "$BINARY" &>/dev/null; then
-        # Try to find it relative to the binary
-        local bin_path
-        bin_path="$(command -v "$BINARY")"
-        local bin_dir
-        bin_dir="$(dirname "$bin_path")"
-        if [ -f "${bin_dir}/../share/mux/hooks/mux-status.sh" ]; then
-            src_script="${bin_dir}/../share/mux/hooks/mux-status.sh"
-        fi
-    fi
-
-    # Write hook script directly if source not found
-    cat > "$hook_script" << 'HOOKEOF'
-#!/usr/bin/env bash
-set -euo pipefail
-INPUT=$(cat)
-SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | cut -d'"' -f4)
-HOOK_EVENT=$(echo "$INPUT" | grep -o '"hook_event_name":"[^"]*"' | head -1 | cut -d'"' -f4)
-[ -z "$SESSION_ID" ] && exit 0
-STATUS_FILE="/tmp/mux-status-${SESSION_ID}.json"
-case "$HOOK_EVENT" in
-    PreToolUse)
-        TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | cut -d'"' -f4)
-        printf '{"status":"thinking","tool":"%s","ts":%d}\n' "$TOOL_NAME" "$(date +%s)" > "$STATUS_FILE"
-        ;;
-    Stop)
-        printf '{"status":"idle","ts":%d}\n' "$(date +%s)" > "$STATUS_FILE"
-        ;;
-    Notification)
-        NTYPE=$(echo "$INPUT" | grep -o '"notification_type":"[^"]*"' | head -1 | cut -d'"' -f4)
-        [ "$NTYPE" = "permission_prompt" ] && printf '{"status":"permission","ts":%d}\n' "$(date +%s)" > "$STATUS_FILE"
-        ;;
-esac
-exit 0
-HOOKEOF
-    chmod +x "$hook_script"
-    ok "Hook script installed to ${hook_script}"
-
-    # Register hooks in settings.json
-    if command -v jq &>/dev/null; then
-        local tmp_file
-        tmp_file="$(mktemp)"
-        local hook_cmd="${hook_script}"
-
-        local hooks_json
-        hooks_json=$(cat << JSONEOF
-{
-  "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "${hook_cmd}", "timeout": 3}]}],
-  "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "${hook_cmd}", "timeout": 3}]}],
-  "Notification": [{"matcher": "permission_prompt", "hooks": [{"type": "command", "command": "${hook_cmd}", "timeout": 3}]}]
-}
-JSONEOF
-)
-
-        if [ -f "$settings" ]; then
-            jq --argjson newhooks "$hooks_json" '
-                .hooks = (.hooks // {}) |
-                .hooks.PreToolUse = ((.hooks.PreToolUse // []) + $newhooks.PreToolUse) |
-                .hooks.Stop = ((.hooks.Stop // []) + $newhooks.Stop) |
-                .hooks.Notification = ((.hooks.Notification // []) + $newhooks.Notification)
-            ' "$settings" > "$tmp_file"
-        else
-            jq -n --argjson newhooks "$hooks_json" '{hooks: $newhooks}' > "$tmp_file"
-        fi
-        mv "$tmp_file" "$settings"
-        ok "Claude Code hooks registered in ${settings}"
-    else
-        warn "jq not found. Hook script installed but not registered."
-        warn "Install jq and re-run: install.sh --hooks-only"
-    fi
-}
-
-setup_codex_hooks() {
-    info "Setting up Codex CLI hooks..."
-    # Codex hook setup is placeholder — the exact config location
-    # depends on the Codex CLI version
-    warn "Codex CLI hook setup is experimental."
-    warn "Please refer to Codex CLI documentation for hook configuration."
-}
-
 # --- Main ---
 
 echo ""
 echo "  ⚡ mux installer"
 echo ""
 
-if ! "$HOOKS_ONLY"; then
-    # Step 1: Install binary
-    if ask "[1/4] Install ${BINARY} binary?"; then
-        install_binary
-    else
-        skip "${BINARY} binary installation skipped"
-    fi
-    echo ""
-
-    # Step 2: tmux keybinding
-    if ask "[2/4] Configure tmux keybinding (prefix+m)?"; then
-        setup_keybind
-    else
-        skip "Keybinding setup skipped"
-    fi
-    echo ""
-
-    # Step 3: Claude Code hooks
-    if ask "[3/4] Set up Claude Code hooks?" "n"; then
-        setup_claude_hooks
-    else
-        skip "Claude Code hooks skipped"
-    fi
-    echo ""
-
-    # Step 4: Codex CLI hooks
-    if ask "[4/4] Set up Codex CLI hooks?" "n"; then
-        setup_codex_hooks
-    else
-        skip "Codex CLI hooks skipped"
-    fi
+# Step 1: Install binary
+if ask "[1/2] Install ${BINARY} binary?"; then
+    install_binary
 else
-    # Hooks only mode
-    echo "  (hooks-only mode)"
-    echo ""
+    skip "${BINARY} binary installation skipped"
+fi
+echo ""
 
-    if ask "[1/2] Set up Claude Code hooks?"; then
-        setup_claude_hooks
-    else
-        skip "Claude Code hooks skipped"
-    fi
-    echo ""
-
-    if ask "[2/2] Set up Codex CLI hooks?"; then
-        setup_codex_hooks
-    else
-        skip "Codex CLI hooks skipped"
-    fi
+# Step 2: tmux keybinding
+if ask "[2/2] Configure tmux keybinding (prefix+m)?"; then
+    setup_keybind
+else
+    skip "Keybinding setup skipped"
 fi
 
 echo ""

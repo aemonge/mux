@@ -9,7 +9,7 @@ import (
 	"github.com/lunemis/mux/tmux"
 )
 
-func renderPreview(session *tmux.Session, captured string, width, height int, status tmux.AgentStatus, tokenUsage *tmux.TokenUsage) string {
+func renderPreview(session *tmux.Session, captured string, width, height int, tokenUsage *tmux.TokenUsage) string {
 	innerWidth := width - 2
 	innerHeight := height - 2
 
@@ -28,24 +28,18 @@ func renderPreview(session *tmux.Session, captured string, width, height int, st
 		return drawBorder(content, width, innerHeight)
 	}
 
-	// Header: build plain text first, then append styled badges after padding
+	// Header: build plain text first, then append styled badge after padding
 	// to prevent ANSI codes and ambiguous-width icons from being clipped.
 	badge := aiLabelPlain(session.ActiveCommand)
-	statusBadge := statusLabelPlain(status)
-	suffixPlain := badge.text + statusBadge.text
-	// Each ambiguous-width icon takes 2 cells but ansi.StringWidth reports 1
-	suffixExtra := badge.extraWidth + statusBadge.extraWidth
 
 	headerText := fmt.Sprintf("[ %s ]  %s", session.Name, shortenPath(session.Directory))
-	headerWidth := innerWidth - len(suffixPlain) - suffixExtra
+	headerWidth := innerWidth - len(badge.text) - badge.extraWidth
 	if headerWidth < 0 {
 		headerWidth = 0
 	}
 	headerPadded := padOrTruncate(headerText, headerWidth)
 
-	// Now build the styled suffix
-	styledSuffix := badge.styled + statusBadge.styled
-	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(headerPadded) + styledSuffix
+	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(headerPadded) + badge.styled
 	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(
 		strings.Repeat("─", innerWidth))
 
@@ -110,26 +104,6 @@ func aiLabelPlain(cmd string) labelInfo {
 	}
 	text := "  " + tool.Icon + " " + tool.Name
 	styled := "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(tool.Icon+" "+tool.Name)
-	return labelInfo{text: text, styled: styled, extraWidth: 1}
-}
-
-func statusLabelPlain(s tmux.AgentStatus) labelInfo {
-	icon := tmux.StatusIcon(s)
-	if icon == "" {
-		return labelInfo{}
-	}
-	label := tmux.StatusLabel(s)
-	var color lipgloss.Color
-	switch s {
-	case tmux.StatusThinking:
-		color = lipgloss.Color("#FBBF24") // yellow
-	case tmux.StatusPermission:
-		color = lipgloss.Color("#EF4444") // red
-	default:
-		return labelInfo{}
-	}
-	text := "  " + icon + " " + label
-	styled := "  " + lipgloss.NewStyle().Foreground(color).Bold(true).Render(icon+" "+label)
 	return labelInfo{text: text, styled: styled, extraWidth: 1}
 }
 

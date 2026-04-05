@@ -57,7 +57,6 @@ type Model struct {
 	attachName       string // set when we want to attach after quitting
 	previewContent string           // cached capture-pane output
 	previewSession string           // session name the cache belongs to
-	previewStatus  tmux.AgentStatus // detected agent status for current preview
 	tokenUsage     *tmux.TokenUsage // cached token usage for current AI session
 	tokenSession   string           // session name the token cache belongs to
 }
@@ -88,7 +87,6 @@ type previewLoadedMsg struct {
 type tokenUsageLoadedMsg struct {
 	sessionName string
 	usage       *tmux.TokenUsage
-	status      tmux.AgentStatus
 }
 
 func refreshPreview(sessionName string) tea.Cmd {
@@ -108,8 +106,7 @@ func loadTokenUsage(sessionName string, panePID int) tea.Cmd {
 			return tokenUsageLoadedMsg{sessionName: sessionName}
 		}
 		usage, _ := tmux.LoadTokenUsage(sessionID, cwd)
-		status := tmux.ReadAgentStatus(sessionID)
-		return tokenUsageLoadedMsg{sessionName: sessionName, usage: usage, status: status}
+		return tokenUsageLoadedMsg{sessionName: sessionName, usage: usage}
 	}
 }
 
@@ -159,7 +156,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tokenUsageLoadedMsg:
 		m.tokenSession = msg.sessionName
 		m.tokenUsage = msg.usage
-		m.previewStatus = msg.status
 		return m, nil
 
 	case sessionCreatedMsg:
@@ -407,15 +403,11 @@ func (m Model) viewMain() string {
 	if currentSession != nil && m.previewSession == currentSession.Name {
 		cachedContent = m.previewContent
 	}
-	previewStatus := tmux.StatusUnknown
-	if currentSession != nil && m.previewSession == currentSession.Name {
-		previewStatus = m.previewStatus
-	}
 	var tokenUsage *tmux.TokenUsage
 	if currentSession != nil && m.tokenSession == currentSession.Name {
 		tokenUsage = m.tokenUsage
 	}
-	preview := renderPreview(currentSession, cachedContent, previewWidth, panelHeight, previewStatus, tokenUsage)
+	preview := renderPreview(currentSession, cachedContent, previewWidth, panelHeight, tokenUsage)
 
 	// Join line-by-line for exact alignment
 	content := joinHorizontalFixed(list, preview)
