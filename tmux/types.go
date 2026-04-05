@@ -14,4 +14,6 @@ type Session struct {
 	Directory     string
 	ActiveCommand string
 	PanePID       int
+	GitBranch     string // current git branch, empty if not a git repo
+	IsWorktree    bool   // true if Directory is a linked git worktree
 }

@@ -28,18 +28,30 @@ func renderPreview(session *tmux.Session, captured string, width, height int, to
 		return drawBorder(content, width, innerHeight)
 	}
 
-	// Header: build plain text first, then append styled badge after padding
-	// to prevent ANSI codes and ambiguous-width icons from being clipped.
+	// Header: build text first, append styled suffixes after padding
+	// to prevent ANSI codes and ambiguous-width icons from clipping.
 	badge := aiLabelPlain(session.ActiveCommand)
 
+	branchInfo := ""
+	branchStyled := ""
+	if session.GitBranch != "" {
+		prefix := "⌥"
+		if session.IsWorktree {
+			prefix = "⌥⌥"
+		}
+		branchText := prefix + " " + session.GitBranch
+		branchInfo = "  " + branchText
+		branchStyled = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(branchText)
+	}
+
 	headerText := fmt.Sprintf("[ %s ]  %s", session.Name, shortenPath(session.Directory))
-	headerWidth := innerWidth - len(badge.text) - badge.extraWidth
-	if headerWidth < 0 {
-		headerWidth = 0
+	headerWidth := innerWidth - len(badge.text) - badge.extraWidth - len(branchInfo)
+	if headerWidth < 10 {
+		headerWidth = 10
 	}
 	headerPadded := padOrTruncate(headerText, headerWidth)
 
-	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(headerPadded) + badge.styled
+	headerStyled := lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render(headerPadded) + badge.styled + branchStyled
 	separator := lipgloss.NewStyle().Foreground(colorBorder).Render(
 		strings.Repeat("─", innerWidth))
 
