@@ -9,9 +9,6 @@ Running Claude in one session, Codex in another, and a dev server in a third? Sw
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-<!-- TODO: Replace with an actual demo recording
-     Record with: https://github.com/charmbracelet/vhs
-     vhs demo.tape  →  produces demo.gif -->
 ![Demo](assets/demo.gif)
 
 ## The Problem
@@ -30,14 +27,8 @@ tmux's built-in `choose-session` shows you a list of names — but which session
 ### Live preview
 See the actual terminal output of any session *before* you switch. No more guessing.
 
-<!-- TODO: screenshot of the main view with live preview panel visible -->
-<!-- ![Live preview](assets/preview.png) -->
-
 ### AI CLI detection
 `claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
-
-<!-- TODO: screenshot showing sessions with AI CLI badges (✦ claude, ◈ codex, etc.) -->
-<!-- ![AI CLI badges](assets/ai-badges.png) -->
 
 ### Git branch & worktree display
 Each session shows the current git branch. Worktrees are marked with `⌥⌥` so you can tell at a glance which sessions are working on isolated branches.
@@ -48,8 +39,7 @@ For Claude Code sessions, mux reads session logs to display real-time token usag
 ### Popup overlay
 Press one key to summon mux on top of whatever you're doing — even mid-conversation with an AI CLI. Pick a session and you're there.
 
-<!-- TODO: screenshot/gif of popup appearing over an active Claude session -->
-<!-- ![Popup mode](assets/popup.gif) -->
+![Popup mode](assets/popup.gif)
 
 ### Vim-style navigation
 `j`/`k` to browse, `/` to filter, `Enter` to attach. No mouse needed.
