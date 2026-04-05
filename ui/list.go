@@ -65,28 +65,24 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	ago := timeAgo(s.Created)
 
-	// AI command icon — plain text, styled later to avoid ANSI truncation issues.
+	// AI command icon — placed right after time, styled separately.
 	// Ambiguous-width icons (✦ etc.) render as 2 cells in most terminals
-	// but ansi.StringWidth reports 1, so we reserve extra space.
+	// but ansi.StringWidth reports 1, so we account for the extra cell.
 	icon, iconColor := commandIconPlain(s.ActiveCommand)
-	iconReserved := 3 // icon(2 cells) + space(1), or 3 spaces for non-AI
-
-	textWidth := width - iconReserved
-	if textWidth < 0 {
-		textWidth = 0
-	}
-	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
-	paddedText := padOrTruncate(text, textWidth)
-
-	// Build styled icon separately
 	var styledIcon string
 	if iconColor != "" {
-		styledIcon = lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Render(icon) + " "
-	} else {
-		styledIcon = "   "
+		styledIcon = " " + lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Render(icon)
 	}
 
-	row := paddedText + styledIcon
+	// Build text with icon inline after time, then pad the whole row
+	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
+	text += styledIcon
+	// Compensate: icon char is 2 cells wide but measured as 1
+	extraWidth := 0
+	if iconColor != "" {
+		extraWidth = 1
+	}
+	row := padOrTruncate(text, width-extraWidth)
 
 	if selected {
 		return lipgloss.NewStyle().
