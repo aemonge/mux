@@ -88,6 +88,7 @@ type previewLoadedMsg struct {
 type tokenUsageLoadedMsg struct {
 	sessionName string
 	usage       *tmux.TokenUsage
+	status      tmux.AgentStatus
 }
 
 func refreshPreview(sessionName string) tea.Cmd {
@@ -106,11 +107,9 @@ func loadTokenUsage(sessionName string, panePID int) tea.Cmd {
 		if err != nil {
 			return tokenUsageLoadedMsg{sessionName: sessionName}
 		}
-		usage, err := tmux.LoadTokenUsage(sessionID, cwd)
-		if err != nil {
-			return tokenUsageLoadedMsg{sessionName: sessionName}
-		}
-		return tokenUsageLoadedMsg{sessionName: sessionName, usage: usage}
+		usage, _ := tmux.LoadTokenUsage(sessionID, cwd)
+		status := tmux.ReadAgentStatus(sessionID)
+		return tokenUsageLoadedMsg{sessionName: sessionName, usage: usage, status: status}
 	}
 }
 
@@ -155,17 +154,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case previewLoadedMsg:
 		m.previewSession = msg.sessionName
 		m.previewContent = msg.content
-		// Detect agent status from the captured pane content
-		if cur := m.currentSessionName(); cur == msg.sessionName {
-			if idx := m.currentSessionIndex(); idx >= 0 {
-				m.previewStatus = tmux.DetectAgentStatus(m.filtered[idx].ActiveCommand, msg.content)
-			}
-		}
 		return m, nil
 
 	case tokenUsageLoadedMsg:
 		m.tokenSession = msg.sessionName
 		m.tokenUsage = msg.usage
+		m.previewStatus = msg.status
 		return m, nil
 
 	case sessionCreatedMsg:

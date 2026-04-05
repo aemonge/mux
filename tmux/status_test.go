@@ -1,104 +1,67 @@
 package tmux
 
 import (
-	"strings"
+	"encoding/json"
+	"fmt"
+	"os"
 	"testing"
+	"time"
 )
 
-func TestDetectAgentStatus(t *testing.T) {
+func TestReadAgentStatus(t *testing.T) {
+	sessionID := fmt.Sprintf("test-%d", time.Now().UnixNano())
+	path := fmt.Sprintf("/tmp/mux-status-%s.json", sessionID)
+	defer os.Remove(path)
+
 	tests := []struct {
-		name    string
-		command string
-		pane    string
-		want    AgentStatus
+		name   string
+		data   hookStatus
+		want   AgentStatus
 	}{
-		{
-			name:    "non-AI command returns unknown",
-			command: "bash",
-			pane:    "$ ",
-			want:    StatusUnknown,
-		},
-		{
-			name:    "empty pane with AI command returns idle",
-			command: "claude",
-			pane:    "",
-			want:    StatusIdle,
-		},
-		{
-			name:    "claude permission prompt with Allow",
-			command: "claude",
-			pane:    "some output\nAllow claude to edit file.go?",
-			want:    StatusPermission,
-		},
-		{
-			name:    "claude permission prompt with Y/n",
-			command: "claude",
-			pane:    "Do you want to proceed? (Y/n)",
-			want:    StatusPermission,
-		},
-		{
-			name:    "claude thinking with spinner",
-			command: "claude",
-			pane:    "⠹ Processing request...",
-			want:    StatusThinking,
-		},
-		{
-			name:    "claude thinking with keyword",
-			command: "claude",
-			pane:    "Thinking about the best approach...",
-			want:    StatusThinking,
-		},
-		{
-			name:    "claude reading",
-			command: "claude",
-			pane:    "Reading file src/main.go",
-			want:    StatusThinking,
-		},
-		{
-			name:    "claude idle with shell prompt",
-			command: "claude",
-			pane:    "Done. Changes applied.\n> ",
-			want:    StatusIdle,
-		},
-		{
-			name:    "codex thinking",
-			command: "codex",
-			pane:    "Searching codebase for references...",
-			want:    StatusThinking,
-		},
-		{
-			name:    "permission takes priority over thinking",
-			command: "claude",
-			pane:    "Writing changes...\nAllow edit? (Y)es/(N)o",
-			want:    StatusPermission,
-		},
-		{
-			name:    "only scans last N lines",
-			command: "claude",
-			pane:    "Allow edit?\n" + strings.Repeat("normal output\n", 20) + "idle prompt",
-			want:    StatusIdle,
-		},
-		{
-			name:    "aider detected",
-			command: "aider",
-			pane:    "Editing files...",
-			want:    StatusThinking,
-		},
-		{
-			name:    "gemini detected",
-			command: "gemini",
-			pane:    "Generating response...",
-			want:    StatusThinking,
-		},
+		{"thinking", hookStatus{Status: "thinking", TS: time.Now().Unix()}, StatusThinking},
+		{"permission", hookStatus{Status: "permission", TS: time.Now().Unix()}, StatusPermission},
+		{"idle", hookStatus{Status: "idle", TS: time.Now().Unix()}, StatusIdle},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := DetectAgentStatus(tt.command, tt.pane)
+			data, _ := json.Marshal(tt.data)
+			os.WriteFile(path, data, 0644)
+
+			got := ReadAgentStatus(sessionID)
 			if got != tt.want {
-				t.Errorf("DetectAgentStatus(%q, ...) = %d, want %d", tt.command, got, tt.want)
+				t.Errorf("ReadAgentStatus() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestReadAgentStatusMissingFile(t *testing.T) {
+	got := ReadAgentStatus("nonexistent-session-id")
+	if got != StatusUnknown {
+		t.Errorf("ReadAgentStatus(missing) = %d, want StatusUnknown", got)
+	}
+}
+
+func TestReadAgentStatusEmptySessionID(t *testing.T) {
+	got := ReadAgentStatus("")
+	if got != StatusUnknown {
+		t.Errorf("ReadAgentStatus('') = %d, want StatusUnknown", got)
+	}
+}
+
+func TestReadAgentStatusStale(t *testing.T) {
+	sessionID := fmt.Sprintf("test-stale-%d", time.Now().UnixNano())
+	path := fmt.Sprintf("/tmp/mux-status-%s.json", sessionID)
+	defer os.Remove(path)
+
+	stale := hookStatus{Status: "thinking", TS: time.Now().Add(-10 * time.Minute).Unix()}
+	data, _ := json.Marshal(stale)
+	os.WriteFile(path, data, 0644)
+
+	got := ReadAgentStatus(sessionID)
+	if got != StatusUnknown {
+		t.Errorf("ReadAgentStatus(stale) = %d, want StatusUnknown", got)
 	}
 }
 
@@ -135,19 +98,5 @@ func TestStatusLabel(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("StatusLabel(%d) = %q, want %q", tt.status, got, tt.want)
 		}
-	}
-}
-
-func TestLastNLines(t *testing.T) {
-	input := "a\nb\nc\nd\ne"
-	got := lastNLines(input, 3)
-	if len(got) != 3 || got[0] != "c" || got[1] != "d" || got[2] != "e" {
-		t.Errorf("lastNLines(%q, 3) = %v, want [c d e]", input, got)
-	}
-
-	short := "a\nb"
-	got2 := lastNLines(short, 5)
-	if len(got2) != 2 {
-		t.Errorf("lastNLines(%q, 5) = %v, want 2 lines", short, got2)
 	}
 }

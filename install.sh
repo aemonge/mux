@@ -143,38 +143,81 @@ setup_claude_hooks() {
         return
     fi
 
+    # Install hook script
+    local hook_dir="${HOME}/.claude/hooks"
+    mkdir -p "$hook_dir"
+    local hook_script="${hook_dir}/mux-status.sh"
+
+    # Find the hook script from the mux installation
+    local src_script=""
+    if command -v "$BINARY" &>/dev/null; then
+        # Try to find it relative to the binary
+        local bin_path
+        bin_path="$(command -v "$BINARY")"
+        local bin_dir
+        bin_dir="$(dirname "$bin_path")"
+        if [ -f "${bin_dir}/../share/mux/hooks/mux-status.sh" ]; then
+            src_script="${bin_dir}/../share/mux/hooks/mux-status.sh"
+        fi
+    fi
+
+    # Write hook script directly if source not found
+    cat > "$hook_script" << 'HOOKEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+INPUT=$(cat)
+SESSION_ID=$(echo "$INPUT" | grep -o '"session_id":"[^"]*"' | head -1 | cut -d'"' -f4)
+HOOK_EVENT=$(echo "$INPUT" | grep -o '"hook_event_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+[ -z "$SESSION_ID" ] && exit 0
+STATUS_FILE="/tmp/mux-status-${SESSION_ID}.json"
+case "$HOOK_EVENT" in
+    PreToolUse)
+        TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | cut -d'"' -f4)
+        printf '{"status":"thinking","tool":"%s","ts":%d}\n' "$TOOL_NAME" "$(date +%s)" > "$STATUS_FILE"
+        ;;
+    Stop)
+        printf '{"status":"idle","ts":%d}\n' "$(date +%s)" > "$STATUS_FILE"
+        ;;
+    Notification)
+        NTYPE=$(echo "$INPUT" | grep -o '"notification_type":"[^"]*"' | head -1 | cut -d'"' -f4)
+        [ "$NTYPE" = "permission_prompt" ] && printf '{"status":"permission","ts":%d}\n' "$(date +%s)" > "$STATUS_FILE"
+        ;;
+esac
+exit 0
+HOOKEOF
+    chmod +x "$hook_script"
+    ok "Hook script installed to ${hook_script}"
+
+    # Register hooks in settings.json
     if command -v jq &>/dev/null; then
-        # Use jq for safe JSON manipulation
         local tmp_file
         tmp_file="$(mktemp)"
+        local hook_cmd="${hook_script}"
+
+        local hooks_json
+        hooks_json=$(cat << JSONEOF
+{
+  "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "${hook_cmd}", "timeout": 3}]}],
+  "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "${hook_cmd}", "timeout": 3}]}],
+  "Notification": [{"matcher": "permission_prompt", "hooks": [{"type": "command", "command": "${hook_cmd}", "timeout": 3}]}]
+}
+JSONEOF
+)
 
         if [ -f "$settings" ]; then
-            # Merge hooks into existing settings
-            jq '.hooks = (.hooks // {}) | .hooks.PostToolUse = (.hooks.PostToolUse // []) + [{"matcher":"*","hooks":[{"type":"command","command":"touch /tmp/mux-claude-activity-$(date +%s)"}]}] | .hooks.NotificationArrived = (.hooks.NotificationArrived // []) + [{"matcher":"*","hooks":[{"type":"command","command":"touch /tmp/mux-claude-notification"}]}]' "$settings" > "$tmp_file"
+            jq --argjson newhooks "$hooks_json" '
+                .hooks = (.hooks // {}) |
+                .hooks.PreToolUse = ((.hooks.PreToolUse // []) + $newhooks.PreToolUse) |
+                .hooks.Stop = ((.hooks.Stop // []) + $newhooks.Stop) |
+                .hooks.Notification = ((.hooks.Notification // []) + $newhooks.Notification)
+            ' "$settings" > "$tmp_file"
         else
-            # Create new settings
-            cat > "$tmp_file" << 'SETTINGS_EOF'
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "touch /tmp/mux-claude-activity-$(date +%s)"
-          }
-        ]
-      }
-    ]
-  }
-}
-SETTINGS_EOF
+            jq -n --argjson newhooks "$hooks_json" '{hooks: $newhooks}' > "$tmp_file"
         fi
         mv "$tmp_file" "$settings"
-        ok "Claude Code hooks configured"
+        ok "Claude Code hooks registered in ${settings}"
     else
-        warn "jq not found. Skipping Claude Code hooks setup."
+        warn "jq not found. Hook script installed but not registered."
         warn "Install jq and re-run: install.sh --hooks-only"
     fi
 }
