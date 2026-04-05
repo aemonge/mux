@@ -55,6 +55,7 @@ type Model struct {
 	confirmKillMod   confirmKillModel
 	filterText       string
 	attachName       string // set when we want to attach after quitting
+	focusSession     string // session name to focus cursor on after next load
 	previewContent string           // cached capture-pane output
 	previewSession string           // session name the cache belongs to
 	tokenUsage     *tmux.TokenUsage // cached token usage for current AI session
@@ -145,6 +146,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.sessions != nil {
 			m.sessions = msg.sessions
 			m.applyFilter()
+			if m.focusSession != "" {
+				for i, s := range m.filtered {
+					if s.Name == m.focusSession {
+						m.cursor = i
+						break
+					}
+				}
+				m.focusSession = ""
+			}
 		}
 		return m, nil
 
@@ -160,6 +170,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sessionCreatedMsg:
 		m.mode = modeList
+		m.focusSession = msg.name
 		return m, loadSessions
 
 	case sessionRenamedMsg:
