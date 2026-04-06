@@ -54,16 +54,7 @@ mux
 
 ### 레이아웃
 
-```
-⚡ tmux sessions (3)
-┌──────────────────────────┐┌──────────────────────────────────────────┐
-│ * my-project    2h ✦ main ││ [ my-project ]  ~/dev/project  ✦ claude  │
-│   dev-server    3h        ││   45.2k in / 12.1k out  ~$0.85           │
-│   dotfiles      1d   main ││ ──────────────────────────────────────── │
-│                            ││ ...터미널 출력 미리보기...                 │
-└──────────────────────────┘└──────────────────────────────────────────┘
-↑↓/jk navigate  •  enter attach  •  n new  •  x kill  •  r rename  •  / filter  •  q quit
-```
+![Screenshot](assets/screenshot.png)
 
 ### 팝업 모드 (추천)
 

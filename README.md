@@ -100,16 +100,7 @@ go install github.com/lunemis/mux/cmd/mux@latest
 
 Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attach, `q` to quit.
 
-```
-⚡ tmux sessions (3)
-┌──────────────────────────┐┌──────────────────────────────────────────┐
-│ * my-project    2h ✦ main ││ [ my-project ]  ~/dev/project  ✦ claude  │
-│   dev-server    3h        ││   45.2k in / 12.1k out  ~$0.85           │
-│   dotfiles      1d   main ││ ──────────────────────────────────────── │
-│                            ││ ...terminal output preview...            │
-└──────────────────────────┘└──────────────────────────────────────────┘
-↑↓/jk navigate  •  enter attach  •  n new  •  x kill  •  r rename  •  / filter  •  q quit
-```
+![Screenshot](assets/screenshot.png)
 
 The left panel shows your sessions with AI badges and git branches. The right panel shows a **live preview** of the selected session's terminal output, updated every 500ms.
 
