@@ -31,7 +31,7 @@ See the actual terminal output of any session *before* you switch. No more guess
 `claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
 
 ### Git branch & worktree display
-Each session shows the current git branch. Worktrees are marked with `⌥⌥` so you can tell at a glance which sessions are working on isolated branches.
+Each session shows its current git branch. Linked worktrees are visually distinguished so you can tell at a glance which sessions are working on isolated branches.
 
 ### Cost & token tracking
 For Claude Code sessions, mux reads session logs to display real-time token usage and estimated cost — no configuration needed.
