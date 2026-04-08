@@ -132,6 +132,15 @@ set -g status-right '#(mux status)'
 
 This runs `mux status` which outputs a compact summary like `✦ ◈` when AI sessions are active.
 
+### Works with skimd
+
+Pair with [skimd](https://github.com/lunemis/skimd) to review AI-generated markdown docs without leaving tmux.
+
+- `prefix+m` → **mux** — switch sessions
+- `prefix+v` → **skimd** — skim documents
+
+![mux + skimd workflow](assets/workflow.gif)
+
 ### Keybindings
 
 | Key | Action |

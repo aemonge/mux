@@ -112,6 +112,15 @@ set -g status-right '#(mux status)'
 
 AI 세션이 활성화되면 `✦ ◈` 같은 아이콘이 상태바에 표시됩니다.
 
+### skimd 연동
+
+마크다운 뷰어 [skimd](https://github.com/lunemis/skimd)와 함께 쓰면 AI가 생성한 문서를 tmux 안에서 바로 검토할 수 있습니다.
+
+- `prefix+m` → **mux** — 세션 전환
+- `prefix+v` → **skimd** — 문서 훑기
+
+![mux + skimd workflow](assets/workflow.gif)
+
 ### 키바인딩
 
 | 키 | 동작 |
