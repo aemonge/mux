@@ -34,7 +34,7 @@ func main() {
 
 	setupKeybindCmd := &cobra.Command{
 		Use:   "setup-keybind [key]",
-		Short: fmt.Sprintf("Add popup keybinding to ~/.tmux.conf (default: %s)", tmux.DefaultBindKey),
+		Short: fmt.Sprintf("Add popup keybinding to tmux config (default: %s)", tmux.DefaultBindKey),
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := tmux.DefaultBindKey

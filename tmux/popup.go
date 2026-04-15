@@ -47,19 +47,42 @@ func OpenPopup() error {
 	return cmd.Run()
 }
 
-// SetupKeybind adds a popup keybinding to ~/.tmux.conf.
+func findTmuxConf() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to find home directory: %w", err)
+	}
+
+	// Candidate paths in priority order:
+	//   $XDG_CONFIG_HOME/tmux/tmux.conf → ~/.config/tmux/tmux.conf → ~/.tmux.conf
+	var candidates []string
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		candidates = append(candidates, filepath.Join(xdg, "tmux", "tmux.conf"))
+	}
+	candidates = append(candidates,
+		filepath.Join(home, ".config", "tmux", "tmux.conf"),
+		filepath.Join(home, ".tmux.conf"),
+	)
+
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return filepath.Join(home, ".tmux.conf"), nil
+}
+
+// SetupKeybind adds a popup keybinding to the user's tmux config file.
 func SetupKeybind(key string) error {
 	muxPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to find mux executable: %w", err)
 	}
 
-	home, err := os.UserHomeDir()
+	confPath, err := findTmuxConf()
 	if err != nil {
-		return fmt.Errorf("failed to find home directory: %w", err)
+		return err
 	}
-
-	confPath := filepath.Join(home, ".tmux.conf")
 	bindLine := fmt.Sprintf(`bind %s display-popup -E -w %s -h %s "%s"`, key, popupWidth, popupHeight, muxPath)
 	marker := "# mux popup keybinding"
 
