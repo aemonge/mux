@@ -115,8 +115,15 @@ setup_keybind() {
         "$BINARY" setup-keybind m
         ok "Keybinding added: prefix + m → mux popup"
     else
-        # Manual fallback
-        local conf="${HOME}/.tmux.conf"
+        local conf=""
+        local xdg="${XDG_CONFIG_HOME:-}"
+        if [ -n "$xdg" ] && [ -f "${xdg}/tmux/tmux.conf" ]; then
+            conf="${xdg}/tmux/tmux.conf"
+        elif [ -f "${HOME}/.config/tmux/tmux.conf" ]; then
+            conf="${HOME}/.config/tmux/tmux.conf"
+        else
+            conf="${HOME}/.tmux.conf"
+        fi
         local line='bind-key m display-popup -E -w 80% -h 80% "mux"'
         if [ -f "$conf" ] && grep -q "mux" "$conf"; then
             ok "Keybinding already exists in ${conf}"
