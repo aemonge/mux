@@ -9,16 +9,22 @@ import (
 	"github.com/lunemis/mux/tmux"
 )
 
-func renderSessionList(sessions []tmux.Session, cursor int, filter string, width, height int) string {
+const (
+	indentWindow = 2
+	indentPane   = 4
+)
+
+// renderListView renders the flattened tree (sessions + expanded windows + panes).
+// Items must already be flattened by the caller via flatten().
+func renderListView(items []listItem, cursor int, filter string, t *treeState, width, height int) string {
 	innerWidth := width - 2 // border chars
 	innerHeight := height - 2
 
-	if len(sessions) == 0 {
+	if len(items) == 0 {
 		msg := "No tmux sessions found"
 		if filter != "" {
 			msg = fmt.Sprintf("No match: \"%s\"", filter)
 		}
-		// Center the message
 		lines := make([]string, innerHeight)
 		mid := innerHeight / 2
 		for i := range lines {
@@ -32,7 +38,6 @@ func renderSessionList(sessions []tmux.Session, cursor int, filter string, width
 		return drawBorder(content, width, innerHeight)
 	}
 
-	// Calculate scroll offset to keep cursor visible
 	offset := 0
 	if cursor >= innerHeight {
 		offset = cursor - innerHeight + 1
@@ -41,8 +46,8 @@ func renderSessionList(sessions []tmux.Session, cursor int, filter string, width
 	lines := make([]string, innerHeight)
 	for i := 0; i < innerHeight; i++ {
 		idx := i + offset
-		if idx < len(sessions) {
-			lines[i] = formatSessionRow(sessions[idx], idx == cursor, innerWidth)
+		if idx < len(items) {
+			lines[i] = formatItemRow(items[idx], idx == cursor, innerWidth, t)
 		} else {
 			lines[i] = strings.Repeat(" ", innerWidth)
 		}
@@ -52,7 +57,37 @@ func renderSessionList(sessions []tmux.Session, cursor int, filter string, width
 	return drawBorder(content, width, innerHeight)
 }
 
-func formatSessionRow(s tmux.Session, selected bool, width int) string {
+// renderSessionList preserves the legacy session-only renderer for tests and
+// callers that don't need tree expansion. It wraps each session in a listItem
+// and delegates to renderListView with an empty tree state.
+func renderSessionList(sessions []tmux.Session, cursor int, filter string, width, height int) string {
+	items := make([]listItem, len(sessions))
+	for i := range sessions {
+		items[i] = listItem{kind: itemSession, session: &sessions[i]}
+	}
+	state := newTreeState()
+	return renderListView(items, cursor, filter, &state, width, height)
+}
+
+func formatItemRow(it listItem, selected bool, width int, t *treeState) string {
+	switch it.kind {
+	case itemWindow:
+		expanded := t.isWindowExpanded(it.session.Name, it.window.Index)
+		return formatWindowRow(it.window, expanded, selected, width)
+	case itemPane:
+		return formatPaneRow(it.pane, selected, width)
+	default:
+		expanded := t.isSessionExpanded(it.session.Name)
+		return formatSessionRow(*it.session, expanded, selected, width)
+	}
+}
+
+func formatSessionRow(s tmux.Session, expanded, selected bool, width int) string {
+	chevron := "▶"
+	if expanded {
+		chevron = "▼"
+	}
+
 	status := "○"
 	if s.Attached {
 		status = "*"
@@ -65,25 +100,19 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	ago := timeAgo(s.Created)
 
-	// AI command icon — placed right after time, styled separately.
-	// Ambiguous-width icons (✦ etc.) render as 2 cells in most terminals
-	// but ansi.StringWidth reports 1, so we account for the extra cell.
 	icon, iconColor := commandIconPlain(s.ActiveCommand)
 	var styledIcon string
 	if iconColor != "" {
 		styledIcon = " " + lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor)).Render(icon)
 	}
 
-	// Git branch
 	branch := ""
 	if s.GitBranch != "" {
 		branch = " " + s.GitBranch
 	}
 
-	// Build text with icon inline after time, then branch, then pad
-	text := fmt.Sprintf(" %s %-18s %s", status, name, ago)
+	text := fmt.Sprintf("%s %s %-18s %s", chevron, status, name, ago)
 	text += styledIcon + branch
-	// Compensate: icon char is 2 cells wide but measured as 1
 	extraWidth := 0
 	if iconColor != "" {
 		extraWidth = 1
@@ -100,6 +129,61 @@ func formatSessionRow(s tmux.Session, selected bool, width int) string {
 
 	return lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#9CA3AF")).
+		Render(row)
+}
+
+func formatWindowRow(w *tmux.Window, expanded, selected bool, width int) string {
+	chevron := "▶"
+	if expanded {
+		chevron = "▼"
+	}
+	marker := " "
+	if w.Active {
+		marker = "*"
+	}
+
+	name := w.Name
+	if len(name) > maxSessionNameDisplay {
+		name = name[:maxSessionNameDisplay-3] + "..."
+	}
+
+	text := fmt.Sprintf("%s%s %s %d:%s", strings.Repeat(" ", indentWindow), chevron, marker, w.Index, name)
+	row := padOrTruncate(text, width)
+
+	if selected {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorCursor).
+			Background(colorSelected).
+			Render(row)
+	}
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Render(row)
+}
+
+func formatPaneRow(p *tmux.Pane, selected bool, width int) string {
+	marker := " "
+	if p.Active {
+		marker = "*"
+	}
+	cmd := p.Command
+	if len(cmd) > maxSessionNameDisplay {
+		cmd = cmd[:maxSessionNameDisplay-3] + "..."
+	}
+
+	text := fmt.Sprintf("%s%s %d %s", strings.Repeat(" ", indentPane), marker, p.Index, cmd)
+	row := padOrTruncate(text, width)
+
+	if selected {
+		return lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorCursor).
+			Background(colorSelected).
+			Render(row)
+	}
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280")).
 		Render(row)
 }
 
