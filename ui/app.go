@@ -56,7 +56,7 @@ type Model struct {
 	filterMod        filterModel
 	confirmKillMod   confirmKillModel
 	filterText       string
-	attachName       string // set when we want to attach after quitting
+	attachTarget     previewKey // set when we want to attach after quitting (zero value = no attach)
 	focusSession     string // session name to focus cursor on after next load
 	previewContent string           // cached capture-pane output
 	previewKey     previewKey       // (session, window, pane) the cache belongs to
@@ -177,6 +177,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		if msg.sessions != nil {
 			m.sessions = msg.sessions
+			m.tree.pruneCaches(m.sessions)
 			m.applyFilter()
 			if m.focusSession != "" {
 				for i, it := range m.items {
@@ -284,7 +285,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			if it := m.currentItem(); it != nil {
-				m.attachName = it.session.Name
+				m.attachTarget = previewKeyForItem(*it)
 				return m, tea.Quit
 			}
 
@@ -616,21 +617,51 @@ func renderHelp() string {
 	return strings.Join(parts, helpStyle.Render("  •  "))
 }
 
-// AttachName returns the session to attach to (if any) after TUI exits
+// AttachName returns the session name to attach to (if any) after the TUI
+// exits. Returns empty when no attach was requested.
 func (m Model) AttachName() string {
-	return m.attachName
+	return m.attachTarget.session
 }
 
-// AttachToSession switches to the target session.
+// AttachWindowIndex returns the window index selected for attachment, or -1
+// if the user selected a session row.
+func (m Model) AttachWindowIndex() int {
+	return m.attachTarget.window
+}
+
+// AttachPaneIndex returns the pane index selected for attachment, or -1 if
+// the user did not drill down to a pane row.
+func (m Model) AttachPaneIndex() int {
+	return m.attachTarget.pane
+}
+
+// AttachToSession switches to the target session, optionally focusing a
+// specific window and pane first. Pass windowIdx == -1 to keep the active
+// window; pass paneIdx == -1 to keep the active pane within that window.
+//
 // If already inside tmux, uses switch-client. Otherwise, uses attach-session.
-func AttachToSession(name string) error {
+func AttachToSession(name string, windowIdx, paneIdx int) error {
 	tmuxPath, err := exec.LookPath("tmux")
 	if err != nil {
 		return fmt.Errorf("tmux not found: %w", err)
 	}
 
+	// Focus the requested window/pane *before* attaching, since attach-session
+	// replaces our process and we can't run anything afterwards.
+	if windowIdx >= 0 {
+		windowTarget := fmt.Sprintf("%s:%d", name, windowIdx)
+		if err := exec.Command(tmuxPath, "select-window", "-t", windowTarget).Run(); err != nil {
+			return fmt.Errorf("select-window %s: %w", windowTarget, err)
+		}
+		if paneIdx >= 0 {
+			paneTarget := fmt.Sprintf("%s.%d", windowTarget, paneIdx)
+			if err := exec.Command(tmuxPath, "select-pane", "-t", paneTarget).Run(); err != nil {
+				return fmt.Errorf("select-pane %s: %w", paneTarget, err)
+			}
+		}
+	}
+
 	if os.Getenv("TMUX") != "" {
-		// Inside tmux: switch-client doesn't need exec, just run it
 		return exec.Command(tmuxPath, "switch-client", "-t", name).Run()
 	}
 	return syscall.Exec(tmuxPath, []string{"tmux", "attach-session", "-t", name}, os.Environ())

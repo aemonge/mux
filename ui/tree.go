@@ -88,6 +88,29 @@ func (t *treeState) setWindowExpanded(session string, windowIdx int, expanded bo
 	t.expandedWindow[session][windowIdx] = true
 }
 
+// pruneCaches drops cached windows/panes/expansions for sessions no longer
+// present in the given list. Called whenever the session list refreshes so
+// renamed or killed sessions don't accumulate stale entries.
+func (t *treeState) pruneCaches(sessions []tmux.Session) {
+	live := make(map[string]struct{}, len(sessions))
+	for _, s := range sessions {
+		live[s.Name] = struct{}{}
+	}
+
+	for name := range t.expandedSession {
+		if _, ok := live[name]; !ok {
+			delete(t.expandedSession, name)
+			delete(t.expandedWindow, name)
+			delete(t.windowsCache, name)
+		}
+	}
+	for key := range t.panesCache {
+		if _, ok := live[key.session]; !ok {
+			delete(t.panesCache, key)
+		}
+	}
+}
+
 // flatten builds a flattened list of rows from the given sessions and tree
 // state. Expanded sessions yield their windows; expanded windows yield their
 // panes. The original session slice is held by reference inside the items.
