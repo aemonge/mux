@@ -62,7 +62,7 @@ func parseLine(line string) (Session, error) {
 
 	return Session{
 		Name:          parts[0],
-		Windows:       windows,
+		WindowCount:   windows,
 		Created:       time.Unix(createdUnix, 0),
 		Activity:      time.Unix(activityUnix, 0),
 		Attached:      attached > 0,

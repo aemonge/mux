@@ -11,9 +11,9 @@ import (
 
 func TestLayoutDimensions(t *testing.T) {
 	sessions := []tmux.Session{
-		{Name: "claude", Windows: 1, Created: time.Now().Add(-2 * time.Hour), Attached: true, Directory: "/Users/test/workspace/project1"},
-		{Name: "dev-server", Windows: 2, Created: time.Now().Add(-24 * time.Hour), Attached: false, Directory: "/Users/test/workspace/project2"},
-		{Name: "deploy", Windows: 1, Created: time.Now().Add(-48 * time.Hour), Attached: false, Directory: "/Users/test/workspace/project3"},
+		{Name: "claude", WindowCount: 1, Created: time.Now().Add(-2 * time.Hour), Attached: true, Directory: "/Users/test/workspace/project1"},
+		{Name: "dev-server", WindowCount: 2, Created: time.Now().Add(-24 * time.Hour), Attached: false, Directory: "/Users/test/workspace/project2"},
+		{Name: "deploy", WindowCount: 1, Created: time.Now().Add(-48 * time.Hour), Attached: false, Directory: "/Users/test/workspace/project3"},
 	}
 
 	widths := []int{80, 120, 160, 200}
@@ -50,8 +50,8 @@ func TestLayoutDimensions(t *testing.T) {
 
 func TestListPreviewSameHeight(t *testing.T) {
 	sessions := []tmux.Session{
-		{Name: "claude", Windows: 1, Created: time.Now(), Attached: true, Directory: "/Users/test/project"},
-		{Name: "dev", Windows: 1, Created: time.Now(), Attached: false, Directory: "/Users/test/dev"},
+		{Name: "claude", WindowCount: 1, Created: time.Now(), Attached: true, Directory: "/Users/test/project"},
+		{Name: "dev", WindowCount: 1, Created: time.Now(), Attached: false, Directory: "/Users/test/dev"},
 	}
 
 	width := 120
@@ -79,9 +79,9 @@ func TestSessionListScrolling(t *testing.T) {
 	sessions := make([]tmux.Session, 20)
 	for i := range sessions {
 		sessions[i] = tmux.Session{
-			Name:    fmt.Sprintf("session-%02d", i),
-			Windows: 1,
-			Created: time.Now(),
+			Name:        fmt.Sprintf("session-%02d", i),
+			WindowCount: 1,
+			Created:     time.Now(),
 		}
 	}
 
