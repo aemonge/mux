@@ -110,6 +110,35 @@ func TestSetSessionExpanded_CollapsesWindows(t *testing.T) {
 	}
 }
 
+func TestPruneCaches(t *testing.T) {
+	state := newTreeState()
+	state.setSessionExpanded("alive", true)
+	state.setSessionExpanded("dead", true)
+	state.windowsCache["alive"] = []tmux.Window{{Index: 0, Name: "w"}}
+	state.windowsCache["dead"] = []tmux.Window{{Index: 0, Name: "w"}}
+	state.setWindowExpanded("dead", 0, true)
+	state.panesCache[paneCacheKey{session: "dead", window: 0}] = []tmux.Pane{{Index: 0}}
+	state.panesCache[paneCacheKey{session: "alive", window: 0}] = []tmux.Pane{{Index: 0}}
+
+	state.pruneCaches([]tmux.Session{{Name: "alive"}})
+
+	if state.isSessionExpanded("dead") {
+		t.Error("dead session expansion should be removed")
+	}
+	if _, ok := state.windowsCache["dead"]; ok {
+		t.Error("dead session windows cache should be removed")
+	}
+	if _, ok := state.panesCache[paneCacheKey{session: "dead", window: 0}]; ok {
+		t.Error("dead session panes cache should be removed")
+	}
+	if !state.isSessionExpanded("alive") {
+		t.Error("alive session expansion should be preserved")
+	}
+	if _, ok := state.panesCache[paneCacheKey{session: "alive", window: 0}]; !ok {
+		t.Error("alive session panes cache should be preserved")
+	}
+}
+
 func TestSetWindowExpanded_Toggle(t *testing.T) {
 	state := newTreeState()
 	state.setWindowExpanded("a", 0, true)
