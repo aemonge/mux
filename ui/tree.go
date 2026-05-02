@@ -132,3 +132,37 @@ func (it listItem) canExpand() bool {
 func (it listItem) canCollapse() bool {
 	return it.kind == itemWindow || it.kind == itemPane
 }
+
+// previewKey identifies the (session, window, pane) tuple for capture-pane.
+// window == -1 selects the session's active window; pane == -1 selects the
+// window's active pane.
+type previewKey struct {
+	session string
+	window  int
+	pane    int
+}
+
+// target renders the previewKey as a tmux target string accepted by
+// capture-pane (-t).
+func (k previewKey) target() string {
+	if k.window < 0 {
+		return k.session
+	}
+	if k.pane < 0 {
+		return formatTarget(k.session, k.window, -1)
+	}
+	return formatTarget(k.session, k.window, k.pane)
+}
+
+// previewKeyForItem returns the previewKey for the given list item.
+func previewKeyForItem(it listItem) previewKey {
+	switch it.kind {
+	case itemWindow:
+		return previewKey{session: it.session.Name, window: it.window.Index, pane: -1}
+	case itemPane:
+		return previewKey{session: it.session.Name, window: it.window.Index, pane: it.pane.Index}
+	default:
+		return previewKey{session: it.session.Name, window: -1, pane: -1}
+	}
+}
+

@@ -9,11 +9,11 @@ import (
 	"github.com/lunemis/mux/tmux"
 )
 
-func renderPreview(session *tmux.Session, captured string, width, height int, tokenUsage *tmux.TokenUsage) string {
+func renderPreview(item *listItem, captured string, width, height int, tokenUsage *tmux.TokenUsage) string {
 	innerWidth := width - 2
 	innerHeight := height - 2
 
-	if session == nil {
+	if item == nil {
 		lines := make([]string, innerHeight)
 		mid := innerHeight / 2
 		msg := "No session selected"
@@ -28,6 +28,7 @@ func renderPreview(session *tmux.Session, captured string, width, height int, to
 		return drawBorder(content, width, innerHeight)
 	}
 
+	session := item.session
 	// Header: build text first, append styled suffixes after padding
 	// to prevent ANSI codes and ambiguous-width icons from clipping.
 	badge := aiLabelPlain(session.ActiveCommand)
@@ -44,7 +45,8 @@ func renderPreview(session *tmux.Session, captured string, width, height int, to
 		branchStyled = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(branchText)
 	}
 
-	headerText := fmt.Sprintf("[ %s ]  %s", session.Name, shortenPath(session.Directory))
+	label := previewLabel(item)
+	headerText := fmt.Sprintf("[ %s ]  %s", label, shortenPath(session.Directory))
 	headerWidth := innerWidth - len(badge.text) - badge.extraWidth - len(branchInfo)
 	if headerWidth < 10 {
 		headerWidth = 10
@@ -98,6 +100,20 @@ func renderPreview(session *tmux.Session, captured string, width, height int, to
 
 	content := strings.Join(allLines, "\n")
 	return drawBorder(content, width, innerHeight)
+}
+
+// previewLabel returns the header label for the previewed target. For session
+// rows it's just the session name; for windows/panes it appends the
+// hierarchy and command/window name.
+func previewLabel(it *listItem) string {
+	switch it.kind {
+	case itemWindow:
+		return fmt.Sprintf("%s · %d:%s", it.session.Name, it.window.Index, it.window.Name)
+	case itemPane:
+		return fmt.Sprintf("%s · %d.%d %s", it.session.Name, it.window.Index, it.pane.Index, it.pane.Command)
+	default:
+		return it.session.Name
+	}
 }
 
 // labelInfo holds both the styled and plain-text versions of a badge,
