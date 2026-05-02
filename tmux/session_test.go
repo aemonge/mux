@@ -21,8 +21,8 @@ func TestParseLine(t *testing.T) {
 				if s.Name != "my-session" {
 					t.Errorf("Name = %q, want %q", s.Name, "my-session")
 				}
-				if s.Windows != 2 {
-					t.Errorf("Windows = %d, want %d", s.Windows, 2)
+				if s.WindowCount != 2 {
+					t.Errorf("WindowCount = %d, want %d", s.WindowCount, 2)
 				}
 				if !s.Attached {
 					t.Error("Attached = false, want true")
