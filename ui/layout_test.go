@@ -62,7 +62,8 @@ func TestListPreviewSameHeight(t *testing.T) {
 	contentHeight := height - 3
 
 	listOut := renderSessionList(sessions, 0, "", listWidth, contentHeight)
-	previewOut := renderPreview(&sessions[0], "", previewWidth, contentHeight, nil)
+	item := &listItem{kind: itemSession, session: &sessions[0]}
+	previewOut := renderPreview(item, "", previewWidth, contentHeight, nil)
 
 	listLines := strings.Count(listOut, "\n") + 1
 	previewLines := strings.Count(previewOut, "\n") + 1

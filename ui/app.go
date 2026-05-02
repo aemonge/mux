@@ -59,7 +59,7 @@ type Model struct {
 	attachName       string // set when we want to attach after quitting
 	focusSession     string // session name to focus cursor on after next load
 	previewContent string           // cached capture-pane output
-	previewSession string           // session name the cache belongs to
+	previewKey     previewKey       // (session, window, pane) the cache belongs to
 	tokenUsage     *tmux.TokenUsage // cached token usage for current AI session
 	tokenSession   string           // session name the token cache belongs to
 }
@@ -83,8 +83,8 @@ func loadSessions() tea.Msg {
 }
 
 type previewLoadedMsg struct {
-	sessionName string
-	content     string
+	key     previewKey
+	content string
 }
 
 type tokenUsageLoadedMsg struct {
@@ -117,13 +117,13 @@ func loadPanes(sessionName string, windowIndex int) tea.Cmd {
 	}
 }
 
-func refreshPreview(sessionName string) tea.Cmd {
+func refreshPreview(key previewKey) tea.Cmd {
 	return func() tea.Msg {
-		content, err := tmux.CapturePane(sessionName)
+		content, err := tmux.CapturePaneTarget(key.target())
 		if err != nil {
 			content = "Error: " + err.Error()
 		}
-		return previewLoadedMsg{sessionName: sessionName, content: content}
+		return previewLoadedMsg{key: key, content: content}
 	}
 }
 
@@ -156,12 +156,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		cmds := []tea.Cmd{loadSessions, tick()}
-		if name := m.currentSessionName(); name != "" {
-			cmds = append(cmds, refreshPreview(name))
-			if s := m.currentSession(); s != nil {
-				if tmux.IsAICommand(s.ActiveCommand) {
-					cmds = append(cmds, loadTokenUsage(name, s.PanePID))
-				}
+		if it := m.currentItem(); it != nil {
+			cmds = append(cmds, refreshPreview(previewKeyForItem(*it)))
+			if tmux.IsAICommand(it.session.ActiveCommand) {
+				cmds = append(cmds, loadTokenUsage(it.session.Name, it.session.PanePID))
 			}
 		}
 		// Refresh windows/panes for expanded subtrees
@@ -203,7 +201,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case previewLoadedMsg:
-		m.previewSession = msg.sessionName
+		m.previewKey = msg.key
 		m.previewContent = msg.content
 		return m, nil
 
@@ -262,28 +260,20 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
-				if name := m.currentSessionName(); name != "" {
-					return m, refreshPreview(name)
-				}
+				return m, m.refreshCurrentPreview()
 			}
 		case "down", "j":
 			if m.cursor < len(m.items)-1 {
 				m.cursor++
-				if name := m.currentSessionName(); name != "" {
-					return m, refreshPreview(name)
-				}
+				return m, m.refreshCurrentPreview()
 			}
 		case "g":
 			m.cursor = 0
-			if name := m.currentSessionName(); name != "" {
-				return m, refreshPreview(name)
-			}
+			return m, m.refreshCurrentPreview()
 		case "G":
 			if len(m.items) > 0 {
 				m.cursor = len(m.items) - 1
-				if name := m.currentSessionName(); name != "" {
-					return m, refreshPreview(name)
-				}
+				return m, m.refreshCurrentPreview()
 			}
 
 		case "tab", "right", "l":
@@ -387,10 +377,16 @@ func (m Model) collapseCurrent() (tea.Model, tea.Cmd) {
 	if m.cursor >= len(m.items) {
 		m.cursor = max(0, len(m.items)-1)
 	}
-	if name := m.currentSessionName(); name != "" {
-		return m, refreshPreview(name)
+	return m, m.refreshCurrentPreview()
+}
+
+// refreshCurrentPreview returns a tea.Cmd to capture the pane targeted by the
+// current cursor position. Returns nil when there is no current item.
+func (m *Model) refreshCurrentPreview() tea.Cmd {
+	if it := m.currentItem(); it != nil {
+		return refreshPreview(previewKeyForItem(*it))
 	}
-	return m, nil
+	return nil
 }
 
 // findItemIndex returns the index of the matching listItem, or -1 if not found.
@@ -557,16 +553,17 @@ func (m Model) viewMain() string {
 	// Render both panels (each returns exactly panelHeight lines)
 	list := renderListView(m.items, m.cursor, m.filterText, &m.tree, listWidth, panelHeight)
 
+	currentItem := m.currentItem()
 	currentSession := m.currentSession()
 	cachedContent := ""
-	if currentSession != nil && m.previewSession == currentSession.Name {
+	if currentItem != nil && m.previewKey == previewKeyForItem(*currentItem) {
 		cachedContent = m.previewContent
 	}
 	var tokenUsage *tmux.TokenUsage
 	if currentSession != nil && m.tokenSession == currentSession.Name {
 		tokenUsage = m.tokenUsage
 	}
-	preview := renderPreview(currentSession, cachedContent, previewWidth, panelHeight, tokenUsage)
+	preview := renderPreview(currentItem, cachedContent, previewWidth, panelHeight, tokenUsage)
 
 	// Join line-by-line for exact alignment
 	content := joinHorizontalFixed(list, preview)
