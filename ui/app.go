@@ -44,6 +44,8 @@ const (
 type Model struct {
 	sessions       []tmux.Session
 	filtered       []tmux.Session
+	items          []listItem // flattened tree of (sessions, windows, panes)
+	tree           treeState
 	cursor         int
 	mode           mode
 	width          int
@@ -90,6 +92,31 @@ type tokenUsageLoadedMsg struct {
 	usage       *tmux.TokenUsage
 }
 
+type windowsLoadedMsg struct {
+	sessionName string
+	windows     []tmux.Window
+}
+
+type panesLoadedMsg struct {
+	sessionName string
+	windowIndex int
+	panes       []tmux.Pane
+}
+
+func loadWindows(sessionName string) tea.Cmd {
+	return func() tea.Msg {
+		windows, _ := tmux.ListWindows(sessionName)
+		return windowsLoadedMsg{sessionName: sessionName, windows: windows}
+	}
+}
+
+func loadPanes(sessionName string, windowIndex int) tea.Cmd {
+	return func() tea.Msg {
+		panes, _ := tmux.ListPanes(sessionName, windowIndex)
+		return panesLoadedMsg{sessionName: sessionName, windowIndex: windowIndex, panes: panes}
+	}
+}
+
 func refreshPreview(sessionName string) tea.Cmd {
 	return func() tea.Msg {
 		content, err := tmux.CapturePane(sessionName)
@@ -113,7 +140,7 @@ func loadTokenUsage(sessionName string, panePID int) tea.Cmd {
 
 // NewModel returns a new Model with default settings.
 func NewModel() Model {
-	return Model{}
+	return Model{tree: newTreeState()}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -131,12 +158,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds := []tea.Cmd{loadSessions, tick()}
 		if name := m.currentSessionName(); name != "" {
 			cmds = append(cmds, refreshPreview(name))
-			// Load token usage for AI sessions
-			if idx := m.currentSessionIndex(); idx >= 0 {
-				s := m.filtered[idx]
+			if s := m.currentSession(); s != nil {
 				if tmux.IsAICommand(s.ActiveCommand) {
 					cmds = append(cmds, loadTokenUsage(name, s.PanePID))
 				}
+			}
+		}
+		// Refresh windows/panes for expanded subtrees
+		for name := range m.tree.expandedSession {
+			cmds = append(cmds, loadWindows(name))
+		}
+		for sessionName, windows := range m.tree.expandedWindow {
+			for windowIdx := range windows {
+				cmds = append(cmds, loadPanes(sessionName, windowIdx))
 			}
 		}
 		return m, tea.Batch(cmds...)
@@ -147,8 +181,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sessions = msg.sessions
 			m.applyFilter()
 			if m.focusSession != "" {
-				for i, s := range m.filtered {
-					if s.Name == m.focusSession {
+				for i, it := range m.items {
+					if it.kind == itemSession && it.session.Name == m.focusSession {
 						m.cursor = i
 						break
 					}
@@ -156,6 +190,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focusSession = ""
 			}
 		}
+		return m, nil
+
+	case windowsLoadedMsg:
+		m.tree.windowsCache[msg.sessionName] = msg.windows
+		m.rebuildItems()
+		return m, nil
+
+	case panesLoadedMsg:
+		m.tree.panesCache[paneCacheKey{session: msg.sessionName, window: msg.windowIndex}] = msg.panes
+		m.rebuildItems()
 		return m, nil
 
 	case previewLoadedMsg:
@@ -223,7 +267,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "down", "j":
-			if m.cursor < len(m.filtered)-1 {
+			if m.cursor < len(m.items)-1 {
 				m.cursor++
 				if name := m.currentSessionName(); name != "" {
 					return m, refreshPreview(name)
@@ -235,16 +279,22 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, refreshPreview(name)
 			}
 		case "G":
-			if len(m.filtered) > 0 {
-				m.cursor = len(m.filtered) - 1
+			if len(m.items) > 0 {
+				m.cursor = len(m.items) - 1
 				if name := m.currentSessionName(); name != "" {
 					return m, refreshPreview(name)
 				}
 			}
 
+		case "tab", "right", "l":
+			return m.expandCurrent()
+
+		case "shift+tab", "left", "h":
+			return m.collapseCurrent()
+
 		case "enter":
-			if len(m.filtered) > 0 {
-				m.attachName = m.filtered[m.cursor].Name
+			if it := m.currentItem(); it != nil {
+				m.attachName = it.session.Name
 				return m, tea.Quit
 			}
 
@@ -254,15 +304,15 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.createModel.nameInput.Focus()
 
 		case "x":
-			if len(m.filtered) > 0 {
+			if it := m.currentItem(); it != nil && it.kind == itemSession {
 				m.mode = modeConfirmKill
-				m.confirmKillMod = newConfirmKillModel(m.filtered[m.cursor].Name)
+				m.confirmKillMod = newConfirmKillModel(it.session.Name)
 			}
 
 		case "r":
-			if len(m.filtered) > 0 {
+			if it := m.currentItem(); it != nil && it.kind == itemSession {
 				m.mode = modeRename
-				m.renameModel = newRenameModel(m.filtered[m.cursor].Name)
+				m.renameModel = newRenameModel(it.session.Name)
 				return m, m.renameModel.input.Focus()
 			}
 
@@ -279,6 +329,90 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// expandCurrent expands the row under the cursor and dispatches the loader.
+// On a pane (leaf) it does nothing.
+func (m Model) expandCurrent() (tea.Model, tea.Cmd) {
+	it := m.currentItem()
+	if it == nil || !it.canExpand() {
+		return m, nil
+	}
+	switch it.kind {
+	case itemSession:
+		if m.tree.isSessionExpanded(it.session.Name) {
+			return m, nil
+		}
+		m.tree.setSessionExpanded(it.session.Name, true)
+		m.rebuildItems()
+		return m, loadWindows(it.session.Name)
+	case itemWindow:
+		if m.tree.isWindowExpanded(it.session.Name, it.window.Index) {
+			return m, nil
+		}
+		m.tree.setWindowExpanded(it.session.Name, it.window.Index, true)
+		m.rebuildItems()
+		return m, loadPanes(it.session.Name, it.window.Index)
+	}
+	return m, nil
+}
+
+// collapseCurrent collapses the row under the cursor. On a child row whose own
+// kind cannot collapse further, it walks up to the parent and collapses that.
+func (m Model) collapseCurrent() (tea.Model, tea.Cmd) {
+	it := m.currentItem()
+	if it == nil {
+		return m, nil
+	}
+	switch it.kind {
+	case itemSession:
+		if !m.tree.isSessionExpanded(it.session.Name) {
+			return m, nil
+		}
+		m.tree.setSessionExpanded(it.session.Name, false)
+	case itemWindow:
+		if m.tree.isWindowExpanded(it.session.Name, it.window.Index) {
+			m.tree.setWindowExpanded(it.session.Name, it.window.Index, false)
+		} else {
+			// Already-collapsed window: jump up to the parent session
+			m.cursor = m.findItemIndex(itemSession, it.session.Name, 0, 0)
+			m.tree.setSessionExpanded(it.session.Name, false)
+		}
+	case itemPane:
+		// Collapse the parent window and move cursor up to it
+		m.cursor = m.findItemIndex(itemWindow, it.session.Name, it.window.Index, 0)
+		m.tree.setWindowExpanded(it.session.Name, it.window.Index, false)
+	}
+	m.rebuildItems()
+	if m.cursor >= len(m.items) {
+		m.cursor = max(0, len(m.items)-1)
+	}
+	if name := m.currentSessionName(); name != "" {
+		return m, refreshPreview(name)
+	}
+	return m, nil
+}
+
+// findItemIndex returns the index of the matching listItem, or -1 if not found.
+func (m *Model) findItemIndex(kind itemKind, sessionName string, windowIdx, paneIdx int) int {
+	for i, it := range m.items {
+		if it.kind != kind || it.session.Name != sessionName {
+			continue
+		}
+		switch kind {
+		case itemSession:
+			return i
+		case itemWindow:
+			if it.window.Index == windowIdx {
+				return i
+			}
+		case itemPane:
+			if it.window.Index == windowIdx && it.pane.Index == paneIdx {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func (m Model) updateCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -322,18 +456,37 @@ func (m Model) updateConfirmKill(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m *Model) currentItem() *listItem {
+	if m.cursor >= 0 && m.cursor < len(m.items) {
+		return &m.items[m.cursor]
+	}
+	return nil
+}
+
+// currentSession returns the parent session of the current row (the row itself
+// for session rows). Returns nil if no row is selected.
+func (m *Model) currentSession() *tmux.Session {
+	if it := m.currentItem(); it != nil {
+		return it.session
+	}
+	return nil
+}
+
 func (m *Model) currentSessionName() string {
-	if m.cursor < len(m.filtered) {
-		return m.filtered[m.cursor].Name
+	if s := m.currentSession(); s != nil {
+		return s.Name
 	}
 	return ""
 }
 
-func (m *Model) currentSessionIndex() int {
-	if m.cursor < len(m.filtered) {
-		return m.cursor
+// rebuildItems recomputes the flattened tree view from the filtered session
+// list and current expansion state. Call after sessions, filter, or expansion
+// state changes.
+func (m *Model) rebuildItems() {
+	m.items = flatten(m.filtered, &m.tree)
+	if m.cursor >= len(m.items) {
+		m.cursor = max(0, len(m.items)-1)
 	}
-	return -1
 }
 
 func (m *Model) applyFilter() {
@@ -349,9 +502,7 @@ func (m *Model) applyFilter() {
 			}
 		}
 	}
-	if m.cursor >= len(m.filtered) {
-		m.cursor = max(0, len(m.filtered)-1)
-	}
+	m.rebuildItems()
 }
 
 func (m Model) View() string {
@@ -370,7 +521,7 @@ func (m Model) View() string {
 }
 
 func (m Model) viewMain() string {
-	// Title
+	// Title — count sessions only, not windows/panes
 	count := fmt.Sprintf("(%d)", len(m.filtered))
 	title := titleStyle.Render("⚡ tmux sessions " + count)
 
@@ -404,12 +555,9 @@ func (m Model) viewMain() string {
 	previewWidth := m.width - listWidth
 
 	// Render both panels (each returns exactly panelHeight lines)
-	list := renderSessionList(m.filtered, m.cursor, m.filterText, listWidth, panelHeight)
+	list := renderListView(m.items, m.cursor, m.filterText, &m.tree, listWidth, panelHeight)
 
-	var currentSession *tmux.Session
-	if m.cursor < len(m.filtered) {
-		currentSession = &m.filtered[m.cursor]
-	}
+	currentSession := m.currentSession()
 	cachedContent := ""
 	if currentSession != nil && m.previewSession == currentSession.Name {
 		cachedContent = m.previewContent
@@ -453,6 +601,8 @@ func (m Model) viewWithOverlay(overlay string) string {
 func renderHelp() string {
 	keys := []struct{ key, desc string }{
 		{"↑↓/jk", "navigate"},
+		{"tab", "expand"},
+		{"⇧tab", "collapse"},
 		{"enter", "attach"},
 		{"n", "new"},
 		{"x", "kill"},
