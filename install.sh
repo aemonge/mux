@@ -109,6 +109,52 @@ install_binary() {
     fi
 }
 
+is_oh_my_tmux() {
+    # Hybrid detection mirroring tmux/popup.go's isOhMyTmux:
+    #   A) symlink whose target lives under a `.tmux/` directory.
+    #      Match both absolute (`/home/u/.tmux/.tmux.conf`) and relative
+    #      (`.tmux/.tmux.conf`) targets — the upstream installer uses the
+    #      latter via `ln -s .tmux/.tmux.conf ~/.tmux.conf`.
+    #   B) first line is the oh-my-tmux heredoc signature `# : << 'EOF'`
+    local conf="$1"
+    [ -e "$conf" ] || return 1
+    if [ -L "$conf" ]; then
+        local target
+        target="$(readlink "$conf")"
+        case "$target" in
+            */.tmux/*|.tmux/*) return 0 ;;
+        esac
+    fi
+    local first
+    first="$(head -n1 "$conf" 2>/dev/null || true)"
+    [ "$first" = "# : << 'EOF'" ]
+}
+
+# strip_mux_lines removes mux-owned bind lines from a config file:
+#   - lines tagged with the marker `# mux popup keybinding`
+#   - legacy untagged lines from older install.sh fallbacks: any line
+#     containing `display-popup -E -w 80% -h 80% "mux"`
+# Used to clean up the main .tmux.conf when routing to .tmux.conf.local.
+# Writes through symlinks (oh-my-tmux's ~/.tmux.conf is normally a symlink to
+# ~/.tmux/.tmux.conf — `mv` would replace the symlink, leaving the real file
+# corrupt and breaking `~/.tmux/install.sh` reinstalls).
+strip_mux_lines() {
+    local target="$1"
+    [ -f "$target" ] || return 0
+    local marker='# mux popup keybinding'
+    local legacy='display-popup -E -w 80% -h 80% "mux"'
+    local tmp
+    tmp="$(mktemp)"
+    grep -vF -e "$marker" -e "$legacy" "$target" > "$tmp" || true
+    if cmp -s "$target" "$tmp"; then
+        rm -f "$tmp"
+        return 1
+    fi
+    cat "$tmp" > "$target"
+    rm -f "$tmp"
+    return 0
+}
+
 setup_keybind() {
     info "Setting up tmux keybinding..."
     if command -v "$BINARY" &>/dev/null; then
@@ -125,10 +171,48 @@ setup_keybind() {
             conf="${HOME}/.tmux.conf"
         fi
         local line='bind-key m display-popup -E -w 80% -h 80% "mux"'
-        if [ -f "$conf" ] && grep -q "mux" "$conf"; then
+        local marker='# mux popup keybinding'
+
+        # Route to .tmux.conf.local for oh-my-tmux users — the main conf gets
+        # processed via `cut -c3- | sh`, and any non-`# `-prefixed line we add
+        # there becomes invalid shell at reload time.
+        if is_oh_my_tmux "$conf"; then
+            local local_conf
+            case "$conf" in
+                */.tmux.conf) local_conf="${conf}.local" ;;
+                */tmux.conf)  local_conf="$(dirname "$conf")/tmux.conf.local" ;;
+                *)            local_conf="${conf}.local" ;;
+            esac
+            if [ -f "$local_conf" ] && grep -qF "$marker" "$local_conf"; then
+                ok "Keybinding already exists in ${local_conf}"
+            else
+                local tagged="${line}  ${marker}"
+                if [ -f "$local_conf" ] && grep -qF '# "$@"' "$local_conf"; then
+                    # Insert before the sentinel line oh-my-tmux marks as off-limits.
+                    awk -v ins="$tagged" '
+                        /^# "\$@"[[:space:]]*$/ && !done { print ""; print ins; print ""; done=1 }
+                        { print }
+                    ' "$local_conf" > "${local_conf}.tmp" && mv "${local_conf}.tmp" "$local_conf"
+                else
+                    printf '\n%s\n' "$tagged" >> "$local_conf"
+                fi
+                ok "Detected oh-my-tmux. Keybinding added to ${local_conf}"
+                # Best-effort cleanup of any prior corrupt entry in the main
+                # conf — older mux versions appended unmarked binds there.
+                if strip_mux_lines "$conf"; then
+                    ok "Removed prior mux entry from ${conf}"
+                fi
+                if [ -n "${TMUX:-}" ]; then
+                    tmux source-file "$local_conf" 2>/dev/null && ok "tmux config reloaded"
+                fi
+            fi
+            return 0
+        fi
+
+        if [ -f "$conf" ] && grep -qF "$marker" "$conf"; then
             ok "Keybinding already exists in ${conf}"
         else
-            echo "$line" >> "$conf"
+            printf '%s  %s\n' "$line" "$marker" >> "$conf"
             ok "Keybinding added to ${conf}"
             if [ -n "${TMUX:-}" ]; then
                 tmux source-file "$conf" 2>/dev/null && ok "tmux config reloaded"
