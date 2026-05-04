@@ -9,10 +9,22 @@ import (
 )
 
 const (
-	popupWidth      = "85%"
-	popupHeight     = "80%"
-	minTmuxVersion  = 3.2
-	DefaultBindKey  = "m"
+	popupWidth     = "85%"
+	popupHeight    = "80%"
+	minTmuxVersion = 3.2
+	DefaultBindKey = "m"
+
+	// muxKeybindMarker tags lines we own so we can replace/remove them idempotently.
+	muxKeybindMarker = "# mux popup keybinding"
+
+	// ohMyTmuxSignature is the first line of gpakosz/.tmux's bundled .tmux.conf.
+	// It opens a heredoc that lets the file double as a shell script when
+	// processed via `cut -c3- | sh -s ...`.
+	ohMyTmuxSignature = "# : << 'EOF'"
+
+	// ohMyTmuxSentinel marks the end of user-editable territory in
+	// .tmux.conf.local. oh-my-tmux explicitly warns against writing past it.
+	ohMyTmuxSentinel = `# "$@"`
 )
 
 // OpenPopup opens mux inside a tmux display-popup overlay.
@@ -72,7 +84,59 @@ func findTmuxConf() (string, error) {
 	return filepath.Join(home, ".tmux.conf"), nil
 }
 
+// findTmuxConfLocal returns the path where oh-my-tmux user customizations live,
+// derived from the matched tmux.conf path so XDG and home variants stay paired.
+func findTmuxConfLocal(confPath string) string {
+	dir := filepath.Dir(confPath)
+	base := filepath.Base(confPath)
+	switch base {
+	case "tmux.conf":
+		return filepath.Join(dir, "tmux.conf.local")
+	case ".tmux.conf":
+		return filepath.Join(dir, ".tmux.conf.local")
+	default:
+		return confPath + ".local"
+	}
+}
+
+// isOhMyTmux detects gpakosz/.tmux installs using a hybrid of two signals:
+//
+//   - Strategy A (symlink): confPath is a symlink whose target lives under a
+//     `.tmux/` directory — matches the upstream installer's layout.
+//   - Strategy B (signature): confPath's first line is `# : << 'EOF'` — the
+//     heredoc opener oh-my-tmux uses to make the conf file double as a shell
+//     script. Catches users who copied files instead of symlinking.
+//
+// Either signal alone is sufficient.
+func isOhMyTmux(confPath string) bool {
+	if info, err := os.Lstat(confPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		if target, err := os.Readlink(confPath); err == nil {
+			// Resolve relative symlinks against the symlink's directory.
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(filepath.Dir(confPath), target)
+			}
+			if strings.Contains(filepath.ToSlash(target), "/.tmux/") {
+				return true
+			}
+		}
+	}
+
+	f, err := os.Open(confPath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, len(ohMyTmuxSignature))
+	n, _ := f.Read(buf)
+	return strings.TrimSpace(string(buf[:n])) == ohMyTmuxSignature
+}
+
 // SetupKeybind adds a popup keybinding to the user's tmux config file.
+//
+// For oh-my-tmux installs the bind line is routed to .tmux.conf.local and
+// inserted before the `# "$@"` sentinel (oh-my-tmux marks everything below
+// that line as off-limits). Any prior corrupt entry left in .tmux.conf by
+// older mux versions is removed in the same pass.
 func SetupKeybind(key string) error {
 	muxPath, err := os.Executable()
 	if err != nil {
@@ -84,51 +148,172 @@ func SetupKeybind(key string) error {
 		return err
 	}
 	bindLine := fmt.Sprintf(`bind %s display-popup -E -w %s -h %s "%s"`, key, popupWidth, popupHeight, muxPath)
-	marker := "# mux popup keybinding"
 
-	// Read existing config
-	content, err := os.ReadFile(confPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read %s: %w", confPath, err)
-	}
-
-	lines := strings.Split(string(content), "\n")
-	var newLines []string
-	replaced := false
-
-	for _, line := range lines {
-		if strings.Contains(line, marker) {
-			// Replace existing mux keybinding
-			newLines = append(newLines, bindLine+"  "+marker)
-			replaced = true
-			continue
+	if isOhMyTmux(confPath) {
+		localPath := findTmuxConfLocal(confPath)
+		if err := writeBindToLocal(localPath, bindLine); err != nil {
+			return err
 		}
-		newLines = append(newLines, line)
-	}
+		// Best-effort cleanup of any corrupt line older mux versions may have
+		// appended to the main conf. Ignore failures — we already succeeded
+		// on the file that matters.
+		removed, _ := stripMarkerLines(confPath)
 
-	if !replaced {
-		// Ensure trailing newline before appending
-		if len(newLines) > 0 && newLines[len(newLines)-1] != "" {
-			newLines = append(newLines, "")
+		fmt.Printf("Detected oh-my-tmux. Added to %s:\n  %s\n\n", localPath, bindLine)
+		if removed {
+			fmt.Printf("Removed prior mux entry from %s (was breaking oh-my-tmux's heredoc).\n\n", confPath)
 		}
-		newLines = append(newLines, bindLine+"  "+marker)
+		fmt.Printf("Reload tmux config:\n  tmux source-file %s\n\n", localPath)
+		fmt.Printf("Then press: prefix + %s (default prefix: Ctrl+b)\n", key)
+		return nil
 	}
 
-	result := strings.Join(newLines, "\n")
-	// Ensure file ends with newline
-	if !strings.HasSuffix(result, "\n") {
-		result += "\n"
+	if err := upsertBindLine(confPath, bindLine, true); err != nil {
+		return err
 	}
-
-	if err := os.WriteFile(confPath, []byte(result), 0644); err != nil {
-		return fmt.Errorf("failed to write %s: %w", confPath, err)
-	}
-
 	fmt.Printf("Added to %s:\n  %s\n\n", confPath, bindLine)
 	fmt.Printf("Reload tmux config:\n  tmux source-file %s\n\n", confPath)
 	fmt.Printf("Then press: prefix + %s (default prefix: Ctrl+b)\n", key)
-
 	return nil
+}
+
+// upsertBindLine writes bindLine into path. If a line tagged with
+// muxKeybindMarker already exists it is replaced in place; otherwise the line
+// is appended (createIfMissing controls whether a missing file is allowed).
+func upsertBindLine(path, bindLine string, createIfMissing bool) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to read %s: %w", path, err)
+		}
+		if !createIfMissing {
+			return fmt.Errorf("failed to read %s: %w", path, err)
+		}
+	}
+
+	tagged := bindLine + "  " + muxKeybindMarker
+	lines := strings.Split(string(content), "\n")
+	replaced := false
+	for i, line := range lines {
+		if strings.Contains(line, muxKeybindMarker) {
+			lines[i] = tagged
+			replaced = true
+		}
+	}
+	if !replaced {
+		if len(lines) > 0 && lines[len(lines)-1] != "" {
+			lines = append(lines, "")
+		}
+		lines = append(lines, tagged)
+	}
+
+	result := strings.Join(lines, "\n")
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+	if err := os.WriteFile(path, []byte(result), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+	return nil
+}
+
+// writeBindToLocal upserts bindLine into an oh-my-tmux .tmux.conf.local,
+// inserting before the `# "$@"` sentinel. Falls back to append if the sentinel
+// is missing (user may have stripped it). Creates the file if absent.
+func writeBindToLocal(path, bindLine string) error {
+	content, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	tagged := bindLine + "  " + muxKeybindMarker
+	lines := strings.Split(string(content), "\n")
+
+	// Replace existing marker line in place.
+	for i, line := range lines {
+		if strings.Contains(line, muxKeybindMarker) {
+			lines[i] = tagged
+			result := strings.Join(lines, "\n")
+			if !strings.HasSuffix(result, "\n") {
+				result += "\n"
+			}
+			return os.WriteFile(path, []byte(result), 0644)
+		}
+	}
+
+	// Insert before the sentinel if present.
+	sentinelIdx := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == ohMyTmuxSentinel {
+			sentinelIdx = i
+			break
+		}
+	}
+
+	if sentinelIdx >= 0 {
+		insertion := []string{"", tagged, ""}
+		newLines := make([]string, 0, len(lines)+len(insertion))
+		newLines = append(newLines, lines[:sentinelIdx]...)
+		newLines = append(newLines, insertion...)
+		newLines = append(newLines, lines[sentinelIdx:]...)
+		lines = newLines
+	} else {
+		if len(lines) > 0 && lines[len(lines)-1] != "" {
+			lines = append(lines, "")
+		}
+		lines = append(lines, tagged)
+	}
+
+	result := strings.Join(lines, "\n")
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+	if err := os.WriteFile(path, []byte(result), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", path, err)
+	}
+	return nil
+}
+
+// legacyInstallerBindFragment matches the exact bind line older install.sh
+// fallbacks appended without a marker comment. Pre-fix install.sh wrote:
+//
+//	bind-key m display-popup -E -w 80% -h 80% "mux"
+//
+// We strip lines containing this fragment so users corrupted via the installer
+// (not via `mux setup-keybind`) get cleaned up too. Substring match is narrow
+// enough to avoid eating user-authored bindings that wrap mux differently.
+const legacyInstallerBindFragment = `display-popup -E -w 80% -h 80% "mux"`
+
+// stripMarkerLines removes any mux-owned line from path: lines tagged with
+// muxKeybindMarker AND legacy untagged installer binds. Returns whether any
+// line was removed. Missing file returns (false, nil).
+func stripMarkerLines(path string) (bool, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	lines := strings.Split(string(content), "\n")
+	kept := make([]string, 0, len(lines))
+	removed := false
+	for _, line := range lines {
+		if strings.Contains(line, muxKeybindMarker) ||
+			strings.Contains(line, legacyInstallerBindFragment) {
+			removed = true
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if !removed {
+		return false, nil
+	}
+	result := strings.Join(kept, "\n")
+	if !strings.HasSuffix(result, "\n") && len(result) > 0 {
+		result += "\n"
+	}
+	return true, os.WriteFile(path, []byte(result), 0644)
 }
 
 func getTmuxVersion() (float64, error) {
