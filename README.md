@@ -24,8 +24,8 @@ tmux's built-in `choose-session` shows you a list of names — but which session
 
 ## How mux solves it
 
-### Live preview
-See the actual terminal output of any session *before* you switch. No more guessing.
+### Live preview — every window and pane
+See the actual terminal output of any session *before* you switch. Press `Tab` to expand a session into its windows, expand again to peek into individual panes — preview each one without attaching.
 
 ### AI CLI detection
 `claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
@@ -147,7 +147,9 @@ Pair with [skimd](https://github.com/lunemis/skimd) to review AI-generated markd
 |---|---|
 | `j` / `k` | Move down / up |
 | `g` / `G` | Jump to first / last |
-| `Enter` | Attach to selected session |
+| `Tab` / `→` / `l` | Expand session → windows → panes |
+| `Shift+Tab` / `←` / `h` | Collapse one level |
+| `Enter` | Attach (focuses the selected window/pane) |
 | `n` | Create new session |
 | `r` | Rename session |
 | `x` | Delete session (with confirmation) |

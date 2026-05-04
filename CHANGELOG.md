@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-window/pane tree expansion in the session list (#14):
+  - `Tab` / `→` / `l` to expand a session into its windows, then a window into its panes
+  - `Shift+Tab` / `←` / `h` to collapse one level
+  - Preview panel now follows the cursor — captures the targeted window or pane via `tmux capture-pane -t session:window.pane`
+  - `Enter` on a window/pane row attaches and focuses that exact pane (`select-window` + `select-pane` before attach)
+- `tmux.ListWindows` / `tmux.ListPanes` / `tmux.CapturePaneTarget` helpers
 - MIT License
 - English README with Korean translation (README.ko.md)
 - CONTRIBUTING.md guide
@@ -17,8 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VHS demo tape for recording demo GIFs
 - Unit tests for tmux and UI packages
 - `--version` flag
+- `scripts/test-fixture.sh` for spinning up test sessions with multiple windows/panes
 
 ### Changed
+- `Session.Windows` (int) split into `Session.WindowCount` (int) + `Session.Windows` ([]Window) — the latter is lazily populated on demand
+- `AttachToSession(name)` signature extended to `AttachToSession(name, windowIdx, paneIdx)` — pass `-1` to keep tmux defaults
 - Cross-platform `shortenPath` using `os.UserHomeDir()` instead of hardcoded `/Users/`
 - Go version in go.mod updated to stable release
 
