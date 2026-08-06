@@ -118,12 +118,25 @@ mux --theme solarized-gruvbox
 mux --theme solarized-gruvbox popup
 ```
 
+Persist the selection in `$XDG_CONFIG_HOME/mux/config.json` (or `~/.config/mux/config.json` when `XDG_CONFIG_HOME` is unset):
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/mux"
+cat > "${XDG_CONFIG_HOME:-$HOME/.config}/mux/config.json" <<'EOF'
+{
+  "theme": "solarized-gruvbox"
+}
+EOF
+```
+
 Or set it for the current environment:
 
 ```bash
 export MUX_THEME=solarized-gruvbox
 mux
 ```
+
+Theme precedence is `--theme`, then `MUX_THEME`, then the XDG config, then `default`.
 
 Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. Theme files are embedded into the binary at build time.
 

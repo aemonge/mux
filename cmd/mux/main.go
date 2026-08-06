@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/lunemis/mux/config"
 	"github.com/lunemis/mux/theme"
 	"github.com/lunemis/mux/tmux"
 	"github.com/lunemis/mux/ui"
@@ -15,16 +16,27 @@ import (
 var version = "dev"
 
 func main() {
-	themeName := os.Getenv("MUX_THEME")
-	if themeName == "" {
+	themeName, configErr := configuredThemeName()
+	if configErr != nil {
 		themeName = "default"
+	}
+	configError := func(cmd *cobra.Command) error {
+		if configErr != nil && !cmd.Flags().Changed("theme") {
+			return configErr
+		}
+		return nil
 	}
 
 	rootCmd := &cobra.Command{
 		Use:     "mux",
 		Short:   "TUI tmux session manager",
 		Version: version,
-		RunE:    runTUI,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := configError(cmd); err != nil {
+				return err
+			}
+			return runTUI(cmd, args)
+		},
 		// Suppress cobra's default completion and help subcommands
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
@@ -36,6 +48,9 @@ func main() {
 		Use:   "popup",
 		Short: "Open mux as a tmux popup overlay",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := configError(cmd); err != nil {
+				return err
+			}
 			if _, err := theme.Get(themeName); err != nil {
 				return err
 			}
@@ -103,6 +118,20 @@ func joinWith(parts []string, sep string) string {
 		result += p
 	}
 	return result
+}
+
+func configuredThemeName() (string, error) {
+	if name := os.Getenv("MUX_THEME"); name != "" {
+		return name, nil
+	}
+	settings, err := config.Load()
+	if err != nil {
+		return "", err
+	}
+	if settings.Theme != "" {
+		return settings.Theme, nil
+	}
+	return "default", nil
 }
 
 func configureTheme(name string) error {
