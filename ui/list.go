@@ -128,7 +128,7 @@ func formatSessionRow(s tmux.Session, expanded, selected bool, width int) string
 	}
 
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9CA3AF")).
+		Foreground(colorText).
 		Render(row)
 }
 
@@ -158,7 +158,7 @@ func formatWindowRow(w *tmux.Window, expanded, selected bool, width int) string 
 			Render(row)
 	}
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9CA3AF")).
+		Foreground(colorText).
 		Render(row)
 }
 
@@ -183,7 +183,7 @@ func formatPaneRow(p *tmux.Pane, selected bool, width int) string {
 			Render(row)
 	}
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6B7280")).
+		Foreground(colorMuted).
 		Render(row)
 }
 
@@ -191,7 +191,7 @@ func formatPaneRow(p *tmux.Pane, selected bool, width int) string {
 // Returns empty strings for non-AI commands.
 func commandIconPlain(cmd string) (icon string, color string) {
 	if tool, ok := tmux.LookupAITool(cmd); ok {
-		return tool.Icon, tool.Color
+		return tool.Icon, aiToolColor(tool.Name, tool.Color)
 	}
 	return "", ""
 }

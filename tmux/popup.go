@@ -27,9 +27,9 @@ const (
 	ohMyTmuxSentinel = `# "$@"`
 )
 
-// OpenPopup opens mux inside a tmux display-popup overlay.
-// Must be called from inside a tmux session.
-func OpenPopup() error {
+// OpenPopup opens mux inside a tmux display-popup overlay and forwards args
+// to the mux process. It must be called from inside a tmux session.
+func OpenPopup(args ...string) error {
 	if os.Getenv("TMUX") == "" {
 		return fmt.Errorf("mux popup must be run inside a tmux session")
 	}
@@ -47,12 +47,15 @@ func OpenPopup() error {
 		return fmt.Errorf("failed to find mux executable: %w", err)
 	}
 
-	cmd := exec.Command("tmux", "display-popup",
+	popupArgs := []string{
+		"display-popup",
 		"-E",
 		"-w", popupWidth,
 		"-h", popupHeight,
 		muxPath,
-	)
+	}
+	popupArgs = append(popupArgs, args...)
+	cmd := exec.Command("tmux", popupArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

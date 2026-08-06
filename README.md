@@ -104,6 +104,29 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attac
 
 The left panel shows your sessions with AI badges and git branches. The right panel shows a **live preview** of the selected session's terminal output, updated every 500ms.
 
+### Themes
+
+mux includes two built-in color themes:
+
+- `default` — the original dark-terminal palette
+- `solarized-gruvbox` — a light theme inspired by Solarized contrast and Gruvbox Light Soft colors
+
+Select a theme with `--theme`:
+
+```bash
+mux --theme solarized-gruvbox
+mux --theme solarized-gruvbox popup
+```
+
+Or set it for the current environment:
+
+```bash
+export MUX_THEME=solarized-gruvbox
+mux
+```
+
+Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. Theme files are embedded into the binary at build time.
+
 ### Popup mode (recommended)
 
 Open mux as a floating overlay inside tmux — works even while AI CLIs are running in the foreground.

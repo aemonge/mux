@@ -53,6 +53,10 @@ docs: update keybinding table
 - Follow standard Go conventions
 - Keep functions focused and small
 
+### Theme colors
+
+All UI and AI-tool colors live in [`theme/*.json`](theme/). Add new semantic color roles to each palette, expose them through `theme.Colors`, and reference those roles from the UI instead of hard-coding colors in Go. Built-in themes are embedded into the binary at build time.
+
 ## Reporting issues
 
 - Search existing issues before opening a new one

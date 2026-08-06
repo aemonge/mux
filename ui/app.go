@@ -16,8 +16,8 @@ import (
 
 const (
 	// Layout
-	listWidthPercent = 2  // numerator of 5 (40%)
-	listWidthDenom   = 5  // denominator
+	listWidthPercent = 2 // numerator of 5 (40%)
+	listWidthDenom   = 5 // denominator
 	minPanelHeight   = 5
 
 	// Timing
@@ -51,13 +51,13 @@ type Model struct {
 	width          int
 	height         int
 	err            error
-	createModel      createModel
-	renameModel      renameModel
-	filterMod        filterModel
-	confirmKillMod   confirmKillModel
-	filterText       string
-	attachTarget     previewKey // set when we want to attach after quitting (zero value = no attach)
-	focusSession     string // session name to focus cursor on after next load
+	createModel    createModel
+	renameModel    renameModel
+	filterMod      filterModel
+	confirmKillMod confirmKillModel
+	filterText     string
+	attachTarget   previewKey       // set when we want to attach after quitting (zero value = no attach)
+	focusSession   string           // session name to focus cursor on after next load
 	previewContent string           // cached capture-pane output
 	previewKey     previewKey       // (session, window, pane) the cache belongs to
 	tokenUsage     *tmux.TokenUsage // cached token usage for current AI session
@@ -507,14 +507,19 @@ func (m Model) View() string {
 		return "Loading..."
 	}
 
+	var view string
 	switch m.mode {
 	case modeCreate:
-		return m.viewWithOverlay(m.createModel.View())
+		view = m.viewWithOverlay(m.createModel.View())
 	case modeRename:
-		return m.viewWithOverlay(m.renameModel.View())
+		view = m.viewWithOverlay(m.renameModel.View())
 	default:
-		return m.viewMain()
+		view = m.viewMain()
 	}
+	if applyBackground {
+		return lipgloss.NewStyle().Background(colorBackground).Render(view)
+	}
+	return view
 }
 
 func (m Model) viewMain() string {

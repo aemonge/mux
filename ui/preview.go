@@ -42,7 +42,7 @@ func renderPreview(item *listItem, captured string, width, height int, tokenUsag
 		}
 		branchText := prefix + " " + session.GitBranch
 		branchInfo = "  " + branchText
-		branchStyled = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(branchText)
+		branchStyled = "  " + lipgloss.NewStyle().Foreground(colorMuted).Render(branchText)
 	}
 
 	label := previewLabel(item)
@@ -131,7 +131,8 @@ func aiLabelPlain(cmd string) labelInfo {
 		return labelInfo{}
 	}
 	text := "  " + tool.Icon + " " + tool.Name
-	styled := "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(tool.Color)).Bold(true).Render(tool.Icon+" "+tool.Name)
+	color := aiToolColor(tool.Name, tool.Color)
+	styled := "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Bold(true).Render(tool.Icon+" "+tool.Name)
 	return labelInfo{text: text, styled: styled, extraWidth: 1}
 }
 
@@ -140,7 +141,7 @@ func formatTokenLine(u *tmux.TokenUsage, width int) string {
 		tmux.FormatTokens(u.InputTokens),
 		tmux.FormatTokens(u.OutputTokens),
 		u.TotalCost)
-	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(
+	styled := lipgloss.NewStyle().Foreground(colorMuted).Render(
 		padOrTruncate(text, width))
 	return styled
 }

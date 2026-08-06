@@ -1,0 +1,20 @@
+{
+  "name": "default",
+  "colors": {
+    "primary": "#7C3AED",
+    "accent": "#22D3EE",
+    "success": "#22C55E",
+    "danger": "#EF4444",
+    "muted": "#6B7280",
+    "border": "#374151",
+    "selected": "#312E81",
+    "cursor": "#A78BFA",
+    "text": "#9CA3AF"
+  },
+  "ai_tools": {
+    "claude": "#F59E0B",
+    "codex": "#60A5FA",
+    "aider": "#34D399",
+    "gemini": "#A78BFA"
+  }
+}

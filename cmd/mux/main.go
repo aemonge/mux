@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/lunemis/mux/theme"
 	"github.com/lunemis/mux/tmux"
 	"github.com/lunemis/mux/ui"
 )
@@ -14,6 +15,11 @@ import (
 var version = "dev"
 
 func main() {
+	themeName := os.Getenv("MUX_THEME")
+	if themeName == "" {
+		themeName = "default"
+	}
+
 	rootCmd := &cobra.Command{
 		Use:     "mux",
 		Short:   "TUI tmux session manager",
@@ -23,12 +29,17 @@ func main() {
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
 	rootCmd.SetVersionTemplate("mux {{.Version}}\n")
+	rootCmd.PersistentFlags().StringVar(&themeName, "theme", themeName,
+		fmt.Sprintf("Color theme (%s)", joinWith(theme.Names(), ", ")))
 
 	popupCmd := &cobra.Command{
 		Use:   "popup",
 		Short: "Open mux as a tmux popup overlay",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return tmux.OpenPopup()
+			if _, err := theme.Get(themeName); err != nil {
+				return err
+			}
+			return tmux.OpenPopup("--theme", themeName)
 		},
 	}
 
@@ -94,7 +105,24 @@ func joinWith(parts []string, sep string) string {
 	return result
 }
 
+func configureTheme(name string) error {
+	selected, err := theme.Get(name)
+	if err != nil {
+		return err
+	}
+	ui.UseTheme(selected)
+	return nil
+}
+
 func runTUI(cmd *cobra.Command, args []string) error {
+	name, err := cmd.Flags().GetString("theme")
+	if err != nil {
+		return err
+	}
+	if err := configureTheme(name); err != nil {
+		return err
+	}
+
 	p := tea.NewProgram(ui.NewModel(), tea.WithAltScreen())
 
 	result, err := p.Run()
