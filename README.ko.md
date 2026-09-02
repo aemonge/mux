@@ -82,6 +82,50 @@ go install github.com/lunemis/mux/cmd/mux@latest
 
 왼쪽 패널에 세션 목록(AI 배지 + git 브랜치), 오른쪽 패널에 선택한 세션의 **실시간 프리뷰**가 500ms마다 갱신됩니다.
 
+### 커스텀 키바인딩
+
+모든 mux 동작은 XDG `config.json`에서 키를 변경할 수 있습니다. 설정하지 않은 동작은 기본 키를 유지하고, 설정한 동작의 기본 키는 지정한 키 목록으로 교체됩니다. 각 동작에는 하나 이상의 키를 지정할 수 있습니다.
+
+```json
+{
+  "theme": "solarized-gruvbox",
+  "keybindings": {
+    "global": {
+      "quit": ["ctrl+q"]
+    },
+    "list": {
+      "up": ["w", "up"],
+      "down": ["s", "down"],
+      "create": ["c"]
+    },
+    "create": {
+      "submit": ["ctrl+s"],
+      "cancel": ["ctrl+x"]
+    }
+  }
+}
+```
+
+키 이름은 Bubble Tea 형식을 사용하며 대소문자를 구분합니다. 예: `enter`, `esc`, `tab`, `shift+tab`, `up`, `right`, `ctrl+c` 또는 문자 하나. 알 수 없는 컨텍스트/동작, 빈 키 목록, 같은 모드에서 충돌하는 키는 오류로 처리됩니다. 도움말과 확인 문구에는 현재 설정된 키가 표시됩니다.
+
+| 컨텍스트 | 동작 | 기본 키 |
+|---|---|---|
+| `global` | `quit` | `ctrl+c` |
+| `list` | `up` / `down` | `up`, `k` / `down`, `j` |
+| `list` | `first` / `last` | `g` / `G` |
+| `list` | `expand` / `collapse` | `tab`, `right`, `l` / `shift+tab`, `left`, `h` |
+| `list` | `attach` | `enter` |
+| `list` | `create` / `rename` / `kill` | `n` / `r` / `x` |
+| `list` | `filter` / `clear_filter` | `/` / `esc` |
+| `list` | `quit` | `q` |
+| `create` | `switch_field` | `tab`, `shift+tab` |
+| `create` | `submit` / `cancel` | `enter` / `esc` |
+| `rename` | `submit` / `cancel` | `enter` / `esc` |
+| `filter` | `apply` / `clear` | `enter` / `esc` |
+| `kill` | `confirm` / `cancel` | `y`, `Y` / `any` |
+
+`any`는 `kill.cancel`에서만 사용할 수 있는 기본 폴백입니다. `["n", "esc"]`처럼 명시적인 키로 교체하면 해당 키만 취소에 사용됩니다. 이 설정은 mux TUI 내부 키만 변경합니다. tmux 팝업 키는 `mux setup-keybind`로 별도 설정합니다.
+
 ### 팝업 모드 (추천)
 
 tmux 안에서 작업 중일 때, 어떤 프로그램이 실행 중이어도 키 하나로 mux를 오버레이로 띄울 수 있습니다.
@@ -121,11 +165,13 @@ AI 세션이 활성화되면 `✦ ◈` 같은 아이콘이 상태바에 표시�
 
 ![mux + skimd workflow](assets/workflow.gif)
 
-### 키바인딩
+### 기본 키바인딩
+
+아래 기본 키는 [커스텀 키바인딩](#커스텀-키바인딩) 설정으로 교체할 수 있습니다.
 
 | 키 | 동작 |
 |---|---|
-| `j` / `k` | 위로 / 아래로 이동 |
+| `j` / `k` | 아래로 / 위로 이동 |
 | `g` / `G` | 처음 / 마지막으로 이동 |
 | `Tab` / `→` / `l` | 세션 → 윈도우 → 페인 펼치기 |
 | `Shift+Tab` / `←` / `h` | 한 단계 접기 |

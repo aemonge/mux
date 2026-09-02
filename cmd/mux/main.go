@@ -16,12 +16,11 @@ import (
 var version = "dev"
 
 func main() {
-	themeName, configErr := configuredThemeName()
-	if configErr != nil {
-		themeName = "default"
-	}
+	settings, configErr := config.Load()
+	themeName := configuredThemeNameFrom(settings)
 	configError := func(cmd *cobra.Command) error {
-		if configErr != nil && !cmd.Flags().Changed("theme") {
+		themeOverride := cmd.Flags().Changed("theme") || os.Getenv("MUX_THEME") != ""
+		if configErr != nil && !themeOverride {
 			return configErr
 		}
 		return nil
@@ -35,7 +34,11 @@ func main() {
 			if err := configError(cmd); err != nil {
 				return err
 			}
-			return runTUI(cmd, args)
+			keyMap, err := keyMapFromSettings(settings)
+			if err != nil {
+				return err
+			}
+			return runTUI(cmd, args, keyMap)
 		},
 		// Suppress cobra's default completion and help subcommands
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
@@ -49,6 +52,9 @@ func main() {
 		Short: "Open mux as a tmux popup overlay",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := configError(cmd); err != nil {
+				return err
+			}
+			if _, err := keyMapFromSettings(settings); err != nil {
 				return err
 			}
 			if _, err := theme.Get(themeName); err != nil {
@@ -128,10 +134,37 @@ func configuredThemeName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if settings.Theme != "" {
-		return settings.Theme, nil
+	return configuredThemeNameFrom(settings), nil
+}
+
+func configuredThemeNameFrom(settings config.Config) string {
+	if name := os.Getenv("MUX_THEME"); name != "" {
+		return name
 	}
-	return "default", nil
+	if settings.Theme != "" {
+		return settings.Theme
+	}
+	return "default"
+}
+
+func configuredKeyMap() (ui.KeyMap, error) {
+	settings, err := config.Load()
+	if err != nil {
+		return ui.KeyMap{}, err
+	}
+	return keyMapFromSettings(settings)
+}
+
+func keyMapFromSettings(settings config.Config) (ui.KeyMap, error) {
+	keyMap, err := ui.NewKeyMap(settings.Keybindings)
+	if err == nil {
+		return keyMap, nil
+	}
+	path, pathErr := config.Path()
+	if pathErr != nil {
+		return ui.KeyMap{}, err
+	}
+	return ui.KeyMap{}, fmt.Errorf("invalid keybindings in %s: %w", path, err)
 }
 
 func configureTheme(name string) error {
@@ -143,7 +176,7 @@ func configureTheme(name string) error {
 	return nil
 }
 
-func runTUI(cmd *cobra.Command, args []string) error {
+func runTUI(cmd *cobra.Command, args []string, keyMap ui.KeyMap) error {
 	name, err := cmd.Flags().GetString("theme")
 	if err != nil {
 		return err
@@ -152,7 +185,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	p := tea.NewProgram(ui.NewModel(), tea.WithAltScreen())
+	p := tea.NewProgram(ui.NewModelWithKeyMap(keyMap), tea.WithAltScreen())
 
 	result, err := p.Run()
 	if err != nil {

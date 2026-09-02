@@ -37,11 +37,11 @@ type sessionCreatedMsg struct {
 	attach bool
 }
 
-func (m createModel) Update(msg tea.Msg) (createModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "tab", "shift+tab":
+func (m createModel) Update(msg tea.Msg, keyMap KeyMap) (createModel, tea.Cmd) {
+	if key, ok := msg.(tea.KeyMsg); ok {
+		pressed := key.String()
+		switch {
+		case keyMap.Matches(contextCreate, "switch_field", pressed):
 			if m.focused == 0 {
 				m.focused = 1
 				m.nameInput.Blur()
@@ -53,7 +53,7 @@ func (m createModel) Update(msg tea.Msg) (createModel, tea.Cmd) {
 			}
 			return m, nil
 
-		case "enter":
+		case keyMap.Matches(contextCreate, "submit", pressed):
 			name := m.nameInput.Value()
 			if name == "" {
 				return m, nil
@@ -85,11 +85,13 @@ func (m createModel) Update(msg tea.Msg) (createModel, tea.Cmd) {
 	return m, cmd
 }
 
-func (m createModel) View() string {
+func (m createModel) View(keyMap KeyMap) string {
 	s := inputLabelStyle.Render("New Session") + "\n\n"
 	s += inputLabelStyle.Render("Name: ") + m.nameInput.View() + "\n"
 	s += inputLabelStyle.Render("Dir:  ") + m.dirInput.View() + "\n\n"
-	s += helpStyle.Render("tab switch • enter create • esc cancel")
+	s += helpStyle.Render(keyMap.Help(contextCreate, "switch_field") + " switch • " +
+		keyMap.Help(contextCreate, "submit") + " create • " +
+		keyMap.Help(contextCreate, "cancel") + " cancel")
 
 	if m.err != nil {
 		s += "\n" + errorStyle.Render(m.err.Error())

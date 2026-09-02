@@ -140,6 +140,50 @@ Theme precedence is `--theme`, then `MUX_THEME`, then the XDG config, then `defa
 
 Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. Theme files are embedded into the binary at build time.
 
+### Custom keybindings
+
+Every mux action can be rebound in the same XDG `config.json`. Overrides are partial: an action you omit keeps its default keys, while an action you include replaces its defaults. Each action accepts one or more keys.
+
+```json
+{
+  "theme": "solarized-gruvbox",
+  "keybindings": {
+    "global": {
+      "quit": ["ctrl+q"]
+    },
+    "list": {
+      "up": ["w", "up"],
+      "down": ["s", "down"],
+      "create": ["c"]
+    },
+    "create": {
+      "submit": ["ctrl+s"],
+      "cancel": ["ctrl+x"]
+    }
+  }
+}
+```
+
+Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shift+tab`, `up`, `right`, `ctrl+c`, or a literal character. mux rejects unknown contexts/actions, empty bindings, and keys assigned to conflicting actions in the same mode. Help bars and prompts show the active bindings.
+
+| Context | Action | Default keys |
+|---|---|---|
+| `global` | `quit` | `ctrl+c` |
+| `list` | `up` / `down` | `up`, `k` / `down`, `j` |
+| `list` | `first` / `last` | `g` / `G` |
+| `list` | `expand` / `collapse` | `tab`, `right`, `l` / `shift+tab`, `left`, `h` |
+| `list` | `attach` | `enter` |
+| `list` | `create` / `rename` / `kill` | `n` / `r` / `x` |
+| `list` | `filter` / `clear_filter` | `/` / `esc` |
+| `list` | `quit` | `q` |
+| `create` | `switch_field` | `tab`, `shift+tab` |
+| `create` | `submit` / `cancel` | `enter` / `esc` |
+| `rename` | `submit` / `cancel` | `enter` / `esc` |
+| `filter` | `apply` / `clear` | `enter` / `esc` |
+| `kill` | `confirm` / `cancel` | `y`, `Y` / `any` |
+
+`any` is a fallback reserved for `kill.cancel`; replace it with explicit keys such as `["n", "esc"]` if only those keys should cancel. These settings control keys inside the mux TUI. The external tmux popup binding remains configured separately with `mux setup-keybind`.
+
 ### Popup mode (recommended)
 
 Open mux as a floating overlay inside tmux — works even while AI CLIs are running in the foreground.
@@ -177,7 +221,9 @@ Pair with [skimd](https://github.com/lunemis/skimd) to review AI-generated markd
 
 ![mux + skimd workflow](assets/workflow.gif)
 
-### Keybindings
+### Default keybindings
+
+These defaults can be replaced through [custom keybindings](#custom-keybindings).
 
 | Key | Action |
 |---|---|

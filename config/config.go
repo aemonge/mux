@@ -10,7 +10,8 @@ import (
 
 // Config contains user-selectable mux settings.
 type Config struct {
-	Theme string `json:"theme"`
+	Theme       string                         `json:"theme"`
+	Keybindings map[string]map[string][]string `json:"keybindings"`
 }
 
 // Path returns the XDG-compatible mux configuration path.

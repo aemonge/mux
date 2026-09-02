@@ -56,6 +56,39 @@ func TestLoadReadsTheme(t *testing.T) {
 	}
 }
 
+func TestLoadReadsKeybindings(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	path := filepath.Join(xdg, "mux", "config.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := `{
+		"theme": "solarized-gruvbox",
+		"keybindings": {
+			"list": {"up": ["w", "up"], "down": ["s", "down"]},
+			"create": {"submit": ["ctrl+s"]}
+		}
+	}`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.Theme != "solarized-gruvbox" {
+		t.Errorf("Theme = %q, want solarized-gruvbox", got.Theme)
+	}
+	if diff := strings.Join(got.Keybindings["list"]["up"], ","); diff != "w,up" {
+		t.Errorf("list.up = %q, want w,up", diff)
+	}
+	if diff := strings.Join(got.Keybindings["create"]["submit"], ","); diff != "ctrl+s" {
+		t.Errorf("create.submit = %q, want ctrl+s", diff)
+	}
+}
+
 func TestLoadAllowsMissingConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 

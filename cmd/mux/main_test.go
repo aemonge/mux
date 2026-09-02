@@ -28,6 +28,29 @@ func TestConfiguredThemeNameReadsXDGConfig(t *testing.T) {
 	}
 }
 
+func TestConfiguredKeyMapReadsXDGConfig(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	path := filepath.Join(xdg, "mux", "config.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"keybindings":{"list":{"up":["w"]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := configuredKeyMap()
+	if err != nil {
+		t.Fatalf("configuredKeyMap() error = %v", err)
+	}
+	if !got.Matches("list", "up", "w") {
+		t.Error("configuredKeyMap() does not use configured list.up binding")
+	}
+	if got.Matches("list", "up", "k") {
+		t.Error("configuredKeyMap() still uses replaced default list.up binding")
+	}
+}
+
 func TestConfiguredThemeNameEnvironmentOverridesConfig(t *testing.T) {
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)

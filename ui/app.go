@@ -42,6 +42,7 @@ const (
 
 // Model is the top-level Bubble Tea model for the session manager TUI.
 type Model struct {
+	keyMap         KeyMap
 	sessions       []tmux.Session
 	filtered       []tmux.Session
 	items          []listItem // flattened tree of (sessions, windows, panes)
@@ -138,9 +139,14 @@ func loadTokenUsage(sessionName string, panePID int) tea.Cmd {
 	}
 }
 
-// NewModel returns a new Model with default settings.
+// NewModel returns a new Model with mux's default keybindings.
 func NewModel() Model {
-	return Model{tree: newTreeState()}
+	return NewModelWithKeyMap(DefaultKeyMap())
+}
+
+// NewModelWithKeyMap returns a new Model with the supplied keybindings.
+func NewModelWithKeyMap(keyMap KeyMap) Model {
+	return Model{keyMap: keyMap, tree: newTreeState()}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -148,6 +154,10 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyMsg); ok && m.keyMap.Matches(contextGlobal, "quit", key.String()) {
+		return m, tea.Quit
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -252,71 +262,65 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	pressed := key.String()
 
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-				return m, m.refreshCurrentPreview()
-			}
-		case "down", "j":
-			if m.cursor < len(m.items)-1 {
-				m.cursor++
-				return m, m.refreshCurrentPreview()
-			}
-		case "g":
-			m.cursor = 0
+	switch {
+	case m.keyMap.Matches(contextList, "quit", pressed):
+		return m, tea.Quit
+	case m.keyMap.Matches(contextList, "up", pressed):
+		if m.cursor > 0 {
+			m.cursor--
 			return m, m.refreshCurrentPreview()
-		case "G":
-			if len(m.items) > 0 {
-				m.cursor = len(m.items) - 1
-				return m, m.refreshCurrentPreview()
-			}
-
-		case "tab", "right", "l":
-			return m.expandCurrent()
-
-		case "shift+tab", "left", "h":
-			return m.collapseCurrent()
-
-		case "enter":
-			if it := m.currentItem(); it != nil {
-				m.attachTarget = previewKeyForItem(*it)
-				return m, tea.Quit
-			}
-
-		case "n":
-			m.mode = modeCreate
-			m.createModel = newCreateModel()
-			return m, m.createModel.nameInput.Focus()
-
-		case "x":
-			if it := m.currentItem(); it != nil && it.kind == itemSession {
-				m.mode = modeConfirmKill
-				m.confirmKillMod = newConfirmKillModel(it.session.Name)
-			}
-
-		case "r":
-			if it := m.currentItem(); it != nil && it.kind == itemSession {
-				m.mode = modeRename
-				m.renameModel = newRenameModel(it.session.Name)
-				return m, m.renameModel.input.Focus()
-			}
-
-		case "/":
-			m.mode = modeFilter
-			m.filterMod = newFilterModel(m.filterText)
-			return m, nil
-
-		case "esc":
-			if m.filterText != "" {
-				m.filterText = ""
-				m.applyFilter()
-			}
+		}
+	case m.keyMap.Matches(contextList, "down", pressed):
+		if m.cursor < len(m.items)-1 {
+			m.cursor++
+			return m, m.refreshCurrentPreview()
+		}
+	case m.keyMap.Matches(contextList, "first", pressed):
+		m.cursor = 0
+		return m, m.refreshCurrentPreview()
+	case m.keyMap.Matches(contextList, "last", pressed):
+		if len(m.items) > 0 {
+			m.cursor = len(m.items) - 1
+			return m, m.refreshCurrentPreview()
+		}
+	case m.keyMap.Matches(contextList, "expand", pressed):
+		return m.expandCurrent()
+	case m.keyMap.Matches(contextList, "collapse", pressed):
+		return m.collapseCurrent()
+	case m.keyMap.Matches(contextList, "attach", pressed):
+		if it := m.currentItem(); it != nil {
+			m.attachTarget = previewKeyForItem(*it)
+			return m, tea.Quit
+		}
+	case m.keyMap.Matches(contextList, "create", pressed):
+		m.mode = modeCreate
+		m.createModel = newCreateModel()
+		return m, m.createModel.nameInput.Focus()
+	case m.keyMap.Matches(contextList, "kill", pressed):
+		if it := m.currentItem(); it != nil && it.kind == itemSession {
+			m.mode = modeConfirmKill
+			m.confirmKillMod = newConfirmKillModel(it.session.Name)
+		}
+	case m.keyMap.Matches(contextList, "rename", pressed):
+		if it := m.currentItem(); it != nil && it.kind == itemSession {
+			m.mode = modeRename
+			m.renameModel = newRenameModel(it.session.Name)
+			return m, m.renameModel.input.Focus()
+		}
+	case m.keyMap.Matches(contextList, "filter", pressed):
+		m.mode = modeFilter
+		m.filterMod = newFilterModel(m.filterText)
+		return m, nil
+	case m.keyMap.Matches(contextList, "clear_filter", pressed):
+		if m.filterText != "" {
+			m.filterText = ""
+			m.applyFilter()
 		}
 	}
 	return m, nil
@@ -413,34 +417,28 @@ func (m *Model) findItemIndex(kind itemKind, sessionName string, windowIdx, pane
 }
 
 func (m Model) updateCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.mode = modeList
-			return m, nil
-		}
+	if key, ok := msg.(tea.KeyMsg); ok && m.keyMap.Matches(contextCreate, "cancel", key.String()) {
+		m.mode = modeList
+		return m, nil
 	}
 	var cmd tea.Cmd
-	m.createModel, cmd = m.createModel.Update(msg)
+	m.createModel, cmd = m.createModel.Update(msg, m.keyMap)
 	return m, cmd
 }
 
 func (m Model) updateRename(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.mode = modeList
-			return m, nil
-		}
+	if key, ok := msg.(tea.KeyMsg); ok && m.keyMap.Matches(contextRename, "cancel", key.String()) {
+		m.mode = modeList
+		return m, nil
 	}
 	var cmd tea.Cmd
-	m.renameModel, cmd = m.renameModel.Update(msg)
+	m.renameModel, cmd = m.renameModel.Update(msg, m.keyMap)
 	return m, cmd
 }
 
 func (m Model) updateFilter(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	m.filterMod, cmd = m.filterMod.Update(msg)
+	m.filterMod, cmd = m.filterMod.Update(msg, m.keyMap)
 	// Live filter as you type
 	m.filterText = m.filterMod.LiveText()
 	m.applyFilter()
@@ -449,7 +447,7 @@ func (m Model) updateFilter(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateConfirmKill(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	m.confirmKillMod, cmd = m.confirmKillMod.Update(msg)
+	m.confirmKillMod, cmd = m.confirmKillMod.Update(msg, m.keyMap)
 	return m, cmd
 }
 
@@ -510,9 +508,9 @@ func (m Model) View() string {
 	var view string
 	switch m.mode {
 	case modeCreate:
-		view = m.viewWithOverlay(m.createModel.View())
+		view = m.viewWithOverlay(m.createModel.View(m.keyMap))
 	case modeRename:
-		view = m.viewWithOverlay(m.renameModel.View())
+		view = m.viewWithOverlay(m.renameModel.View(m.keyMap))
 	default:
 		view = m.viewMain()
 	}
@@ -528,14 +526,14 @@ func (m Model) viewMain() string {
 	title := titleStyle.Render("⚡ tmux sessions " + count)
 
 	// Help bar
-	help := renderHelp()
+	help := renderHelp(m.keyMap)
 
 	// Filter / confirm bar
 	var extraBar string
 	if m.mode == modeFilter {
-		extraBar = m.filterMod.View()
+		extraBar = m.filterMod.View(m.keyMap)
 	} else if m.mode == modeConfirmKill {
-		extraBar = m.confirmKillMod.View()
+		extraBar = m.confirmKillMod.View(m.keyMap)
 	} else if m.filterText != "" {
 		extraBar = helpStyle.Render(fmt.Sprintf("filter: %s (esc clear)", m.filterText))
 	}
@@ -601,17 +599,17 @@ func (m Model) viewWithOverlay(overlay string) string {
 		box)
 }
 
-func renderHelp() string {
+func renderHelp(keyMap KeyMap) string {
 	keys := []struct{ key, desc string }{
-		{"↑↓/jk", "navigate"},
-		{"tab", "expand"},
-		{"⇧tab", "collapse"},
-		{"enter", "attach"},
-		{"n", "new"},
-		{"x", "kill"},
-		{"r", "rename"},
-		{"/", "filter"},
-		{"q", "quit"},
+		{keyMap.Help(contextList, "up") + "/" + keyMap.Help(contextList, "down"), "navigate"},
+		{keyMap.Help(contextList, "expand"), "expand"},
+		{keyMap.Help(contextList, "collapse"), "collapse"},
+		{keyMap.Help(contextList, "attach"), "attach"},
+		{keyMap.Help(contextList, "create"), "new"},
+		{keyMap.Help(contextList, "kill"), "kill"},
+		{keyMap.Help(contextList, "rename"), "rename"},
+		{keyMap.Help(contextList, "filter"), "filter"},
+		{keyMap.Help(contextList, "quit"), "quit"},
 	}
 
 	var parts []string
