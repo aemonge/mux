@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/lunemis/mux/tmux"
 )
 
 func TestShortenPath(t *testing.T) {
@@ -56,6 +58,23 @@ func TestAiLabelPlain(t *testing.T) {
 	info := aiLabelPlain("bash")
 	if info.styled != "" {
 		t.Errorf("aiLabelPlain(%q) styled = %q, want empty", "bash", info.styled)
+	}
+}
+
+func TestRenderPreviewCompactHeightOmitsOptionalTokenRow(t *testing.T) {
+	session := tmux.Session{Name: "compact", Directory: "/tmp"}
+	item := &listItem{kind: itemSession, session: &session}
+	usage := &tmux.TokenUsage{InputTokens: 100, OutputTokens: 50, TotalCost: 0.01}
+
+	output := renderPreview(item, "latest output", 40, 5, usage)
+	if lines := strings.Count(output, "\n") + 1; lines != 5 {
+		t.Errorf("preview lines = %d, want 5", lines)
+	}
+	if strings.Contains(output, "~$") {
+		t.Error("compact preview should omit optional token row")
+	}
+	if !strings.Contains(output, "latest output") {
+		t.Error("compact preview should preserve captured output")
 	}
 }
 

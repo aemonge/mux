@@ -21,6 +21,7 @@ type Colors struct {
 	Danger     string `json:"danger"`
 	Muted      string `json:"muted"`
 	Border     string `json:"border"`
+	Separator  string `json:"separator"`
 	Selected   string `json:"selected"`
 	Cursor     string `json:"cursor"`
 	Text       string `json:"text"`
@@ -87,6 +88,7 @@ func (t Theme) validate() error {
 		{"danger", t.Colors.Danger},
 		{"muted", t.Colors.Muted},
 		{"border", t.Colors.Border},
+		{"separator", t.Colors.Separator},
 		{"selected", t.Colors.Selected},
 		{"cursor", t.Colors.Cursor},
 		{"text", t.Colors.Text},

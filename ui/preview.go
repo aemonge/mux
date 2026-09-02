@@ -62,6 +62,10 @@ func renderPreview(item *listItem, captured string, width, height int, tokenUsag
 	if tokenUsage != nil {
 		tokenLine = formatTokenLine(tokenUsage, innerWidth)
 	}
+	// Compact previews prioritize captured output over the optional token row.
+	if innerHeight < 4 {
+		tokenLine = ""
+	}
 
 	// Available lines for content (minus header + separator + optional token line)
 	headerLines := 2

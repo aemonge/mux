@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/lunemis/mux/tmux"
 )
 
@@ -157,7 +158,17 @@ func TestRenderedHelpAndPromptsUseConfiguredBindings(t *testing.T) {
 		"kill":   {"confirm": {"enter"}, "cancel": {"esc"}},
 	})
 
-	assertContainsAll(t, renderHelp(keyMap), "w/s", "navigate", "c", "new")
+	help := renderHelp(keyMap, 120)
+	assertContainsAll(t, help, "w/s", "navigate", "c", "new")
+	if lines := strings.Split(help, "\n"); len(lines) != 2 {
+		t.Fatalf("help lines = %d, want exactly 2", len(lines))
+	} else {
+		for i, line := range lines {
+			if width := ansi.StringWidth(line); width != 120 {
+				t.Errorf("help line %d width = %d, want 120", i, width)
+			}
+		}
+	}
 	assertContainsAll(t, newCreateModel().View(keyMap), "ctrl+n", "ctrl+s", "ctrl+x")
 	assertContainsAll(t, newRenameModel("old").View(keyMap), "ctrl+s", "ctrl+x")
 	assertContainsAll(t, newFilterModel("").View(keyMap), "ctrl+s", "ctrl+x")

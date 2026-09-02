@@ -7,6 +7,52 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+const (
+	stackedHelpRows      = 2
+	stackedSeparatorRows = 1
+	minimumStackedHeight = 12
+)
+
+type stackedHeights struct {
+	preview   int
+	separator int
+	list      int
+	help      int
+}
+
+// calculateStackedHeights gives the upper half to preview plus its separator,
+// reserves exactly two help rows, and gives the remainder to selection.
+func calculateStackedHeights(total int) stackedHeights {
+	if total <= 0 {
+		return stackedHeights{}
+	}
+
+	help := min(stackedHelpRows, total)
+	upper := total / 2
+	separator := 0
+	if upper > 0 {
+		separator = stackedSeparatorRows
+	}
+	preview := max(0, upper-separator)
+	list := max(0, total-upper-help)
+
+	return stackedHeights{
+		preview:   preview,
+		separator: separator,
+		list:      list,
+		help:      help,
+	}
+}
+
+func renderSeparator(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	return lipgloss.NewStyle().
+		Foreground(colorSeparator).
+		Render(strings.Repeat("━", width))
+}
+
 // padOrTruncate ensures a string is exactly `width` visible characters
 func padOrTruncate(s string, width int) string {
 	w := ansi.StringWidth(s)
@@ -31,31 +77,6 @@ func fixedBox(content string, width, height int) string {
 		} else {
 			result[i] = strings.Repeat(" ", width)
 		}
-	}
-	return strings.Join(result, "\n")
-}
-
-// joinHorizontalFixed joins two blocks of text side-by-side, line by line
-func joinHorizontalFixed(left, right string) string {
-	leftLines := strings.Split(left, "\n")
-	rightLines := strings.Split(right, "\n")
-
-	maxLen := len(leftLines)
-	if len(rightLines) > maxLen {
-		maxLen = len(rightLines)
-	}
-
-	result := make([]string, maxLen)
-	for i := 0; i < maxLen; i++ {
-		l := ""
-		r := ""
-		if i < len(leftLines) {
-			l = leftLines[i]
-		}
-		if i < len(rightLines) {
-			r = rightLines[i]
-		}
-		result[i] = l + r
 	}
 	return strings.Join(result, "\n")
 }

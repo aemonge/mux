@@ -102,7 +102,7 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attac
 
 ![Screenshot](assets/screenshot.png)
 
-The left panel shows your sessions with AI badges and git branches. The right panel shows a **live preview** of the selected session's terminal output, updated every 500ms.
+The upper half shows a **live preview** of the selected session's terminal output, updated every 500ms. A themed separator divides it from the full-width session tree below, followed by two rows of active key help.
 
 ### Themes
 
@@ -138,7 +138,7 @@ mux
 
 Theme precedence is `--theme`, then `MUX_THEME`, then the XDG config, then `default`.
 
-Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. Theme files are embedded into the binary at build time.
+Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. The horizontal preview separator uses `colors.separator` (`#2563EB` blue in the default theme) independently from panel `colors.border`. Theme files are embedded into the binary at build time.
 
 ### Custom keybindings
 

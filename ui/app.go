@@ -15,11 +15,6 @@ import (
 )
 
 const (
-	// Layout
-	listWidthPercent = 2 // numerator of 5 (40%)
-	listWidthDenom   = 5 // denominator
-	minPanelHeight   = 5
-
 	// Timing
 	refreshInterval = 500 * time.Millisecond
 
@@ -521,41 +516,11 @@ func (m Model) View() string {
 }
 
 func (m Model) viewMain() string {
-	// Title — count sessions only, not windows/panes
-	count := fmt.Sprintf("(%d)", len(m.filtered))
-	title := titleStyle.Render("⚡ tmux sessions " + count)
-
-	// Help bar
-	help := renderHelp(m.keyMap)
-
-	// Filter / confirm bar
-	var extraBar string
-	if m.mode == modeFilter {
-		extraBar = m.filterMod.View(m.keyMap)
-	} else if m.mode == modeConfirmKill {
-		extraBar = m.confirmKillMod.View(m.keyMap)
-	} else if m.filterText != "" {
-		extraBar = helpStyle.Render(fmt.Sprintf("filter: %s (esc clear)", m.filterText))
+	if m.height < minimumStackedHeight || m.width < 20 {
+		return fixedBox(errorStyle.Render("Terminal too small for mux"), m.width, m.height)
 	}
 
-	// Chrome: title(1+margin1) + help(1) + extraBar(0 or 1)
-	chrome := 3
-	if extraBar != "" {
-		chrome++
-	}
-
-	// Panel height = total height for both borders + content
-	panelHeight := m.height - chrome
-	if panelHeight < minPanelHeight {
-		panelHeight = minPanelHeight
-	}
-
-	// Layout: list on left, preview on right
-	listWidth := m.width * listWidthPercent / listWidthDenom
-	previewWidth := m.width - listWidth
-
-	// Render both panels (each returns exactly panelHeight lines)
-	list := renderListView(m.items, m.cursor, m.filterText, &m.tree, listWidth, panelHeight)
+	heights := calculateStackedHeights(m.height)
 
 	currentItem := m.currentItem()
 	currentSession := m.currentSession()
@@ -567,24 +532,42 @@ func (m Model) viewMain() string {
 	if currentSession != nil && m.tokenSession == currentSession.Name {
 		tokenUsage = m.tokenUsage
 	}
-	preview := renderPreview(currentItem, cachedContent, previewWidth, panelHeight, tokenUsage)
+	preview := renderPreview(currentItem, cachedContent, m.width, heights.preview, tokenUsage)
 
-	// Join line-by-line for exact alignment
-	content := joinHorizontalFixed(list, preview)
-
-	// Assemble
-	var b strings.Builder
-	b.WriteString(title)
-	b.WriteByte('\n')
-	if extraBar != "" {
-		b.WriteString(extraBar)
-		b.WriteByte('\n')
+	var extraBar string
+	if m.mode == modeFilter {
+		extraBar = m.filterMod.View(m.keyMap)
+	} else if m.mode == modeConfirmKill {
+		extraBar = m.confirmKillMod.View(m.keyMap)
+	} else if m.filterText != "" {
+		extraBar = helpStyle.Render(fmt.Sprintf("filter: %s (%s clear)",
+			m.filterText, m.keyMap.Help(contextList, "clear_filter")))
 	}
-	b.WriteString(content)
-	b.WriteByte('\n')
-	b.WriteString(help)
 
-	return b.String()
+	count := fmt.Sprintf("(%d)", len(m.filtered))
+	title := titleStyle.Render("⚡ tmux sessions " + count)
+	selectionChrome := 1
+	if extraBar != "" {
+		selectionChrome++
+	}
+	listHeight := max(2, heights.list-selectionChrome)
+	list := renderListView(m.items, m.cursor, m.filterText, &m.tree, m.width, listHeight)
+
+	var selection strings.Builder
+	selection.WriteString(title)
+	selection.WriteByte('\n')
+	if extraBar != "" {
+		selection.WriteString(extraBar)
+		selection.WriteByte('\n')
+	}
+	selection.WriteString(list)
+
+	return strings.Join([]string{
+		preview,
+		renderSeparator(m.width),
+		selection.String(),
+		renderHelp(m.keyMap, m.width),
+	}, "\n")
 }
 
 func (m Model) viewWithOverlay(overlay string) string {
@@ -599,25 +582,38 @@ func (m Model) viewWithOverlay(overlay string) string {
 		box)
 }
 
-func renderHelp(keyMap KeyMap) string {
-	keys := []struct{ key, desc string }{
-		{keyMap.Help(contextList, "up") + "/" + keyMap.Help(contextList, "down"), "navigate"},
-		{keyMap.Help(contextList, "expand"), "expand"},
-		{keyMap.Help(contextList, "collapse"), "collapse"},
-		{keyMap.Help(contextList, "attach"), "attach"},
-		{keyMap.Help(contextList, "create"), "new"},
-		{keyMap.Help(contextList, "kill"), "kill"},
-		{keyMap.Help(contextList, "rename"), "rename"},
-		{keyMap.Help(contextList, "filter"), "filter"},
-		{keyMap.Help(contextList, "quit"), "quit"},
+func renderHelp(keyMap KeyMap, width int) string {
+	type helpItem struct{ key, desc string }
+	rows := [][]helpItem{
+		{
+			{keyMap.Help(contextList, "up") + "/" + keyMap.Help(contextList, "down"), "navigate"},
+			{keyMap.Help(contextList, "first"), "first"},
+			{keyMap.Help(contextList, "last"), "last"},
+			{keyMap.Help(contextList, "expand"), "expand"},
+			{keyMap.Help(contextList, "collapse"), "collapse"},
+			{keyMap.Help(contextList, "attach"), "attach"},
+		},
+		{
+			{keyMap.Help(contextList, "create"), "new"},
+			{keyMap.Help(contextList, "kill"), "kill"},
+			{keyMap.Help(contextList, "rename"), "rename"},
+			{keyMap.Help(contextList, "filter"), "filter"},
+			{keyMap.Help(contextList, "clear_filter"), "clear"},
+			{keyMap.Help(contextList, "quit") + "/" + keyMap.Help(contextGlobal, "quit"), "quit"},
+		},
 	}
 
-	var parts []string
-	for _, k := range keys {
-		parts = append(parts,
-			helpKeyStyle.Render(k.key)+" "+helpStyle.Render(k.desc))
+	rendered := make([]string, 0, len(rows))
+	for _, row := range rows {
+		parts := make([]string, 0, len(row))
+		for _, item := range row {
+			parts = append(parts,
+				helpKeyStyle.Render(item.key)+" "+helpStyle.Render(item.desc))
+		}
+		rendered = append(rendered, padOrTruncate(
+			strings.Join(parts, helpStyle.Render("  •  ")), width))
 	}
-	return strings.Join(parts, helpStyle.Render("  •  "))
+	return strings.Join(rendered, "\n")
 }
 
 // AttachName returns the session name to attach to (if any) after the TUI

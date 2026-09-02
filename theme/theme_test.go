@@ -34,7 +34,7 @@ func TestDefaultThemeContainsEveryColorRole(t *testing.T) {
 
 	for _, role := range []string{
 		"primary", "accent", "success", "danger", "muted",
-		"border", "selected", "cursor", "text",
+		"border", "separator", "selected", "cursor", "text",
 	} {
 		assertHexColor(t, "colors."+role, got.Colors[role])
 	}
@@ -66,6 +66,7 @@ func TestSolarizedGruvboxThemeUsesRequestedPalette(t *testing.T) {
 		"primary":    "#076678",
 		"accent":     "#427B58",
 		"success":    "#79740E",
+		"separator":  "#076678",
 		"cursor":     "#8F3F71",
 	}
 	for role, color := range want {
@@ -90,6 +91,9 @@ func TestLoadDefaultTheme(t *testing.T) {
 	}
 	if got.Colors.Text != "#9CA3AF" {
 		t.Errorf("Colors.Text = %q, want #9CA3AF", got.Colors.Text)
+	}
+	if got.Colors.Separator != "#2563EB" {
+		t.Errorf("Colors.Separator = %q, want #2563EB", got.Colors.Separator)
 	}
 	if got.AITools["claude"] != "#F59E0B" {
 		t.Errorf("AITools[claude] = %q, want #F59E0B", got.AITools["claude"])
@@ -142,6 +146,28 @@ func TestLoadRejectsMissingRequiredColor(t *testing.T) {
 	_, err = Load(bytes.NewReader(data))
 	if err == nil || !strings.Contains(err.Error(), "border") {
 		t.Fatalf("Load() error = %v, want missing border error", err)
+	}
+}
+
+func TestLoadRejectsMissingSeparatorColor(t *testing.T) {
+	data, err := os.ReadFile("default.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var raw themeFile
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	delete(raw.Colors, "separator")
+	data, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Load(bytes.NewReader(data))
+	if err == nil || !strings.Contains(err.Error(), "separator") {
+		t.Fatalf("Load() error = %v, want missing separator error", err)
 	}
 }
 

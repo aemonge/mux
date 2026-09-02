@@ -19,6 +19,7 @@ var (
 	colorDanger     lipgloss.Color
 	colorMuted      lipgloss.Color
 	colorBorder     lipgloss.Color
+	colorSeparator  lipgloss.Color
 	colorSelected   lipgloss.Color
 	colorCursor     lipgloss.Color
 	colorText       lipgloss.Color
@@ -50,6 +51,7 @@ func UseTheme(value theme.Theme) {
 	colorDanger = lipgloss.Color(value.Colors.Danger)
 	colorMuted = lipgloss.Color(value.Colors.Muted)
 	colorBorder = lipgloss.Color(value.Colors.Border)
+	colorSeparator = lipgloss.Color(value.Colors.Separator)
 	colorSelected = lipgloss.Color(value.Colors.Selected)
 	colorCursor = lipgloss.Color(value.Colors.Cursor)
 	colorText = lipgloss.Color(value.Colors.Text)

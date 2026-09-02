@@ -24,6 +24,9 @@ func TestUseThemeAppliesPaletteAndAIToolColors(t *testing.T) {
 	if got := string(colorText); got != "#3C3836" {
 		t.Errorf("colorText = %q, want #3C3836", got)
 	}
+	if got := string(colorSeparator); got != "#076678" {
+		t.Errorf("colorSeparator = %q, want #076678", got)
+	}
 	_, color := commandIconPlain("claude")
 	if color != "#AF3A03" {
 		t.Errorf("claude color = %q, want #AF3A03", color)

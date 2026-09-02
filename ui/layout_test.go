@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/lunemis/mux/tmux"
 )
 
@@ -16,8 +17,8 @@ func TestLayoutDimensions(t *testing.T) {
 		{Name: "deploy", WindowCount: 1, Created: time.Now().Add(-48 * time.Hour), Attached: false, Directory: "/Users/test/workspace/project3"},
 	}
 
-	widths := []int{80, 120, 160, 200}
-	heights := []int{20, 30, 40, 50}
+	widths := []int{10, 40, 80, 120, 160, 200}
+	heights := []int{10, 12, 20, 30, 40, 50}
 
 	for _, w := range widths {
 		for _, h := range heights {
@@ -48,30 +49,78 @@ func TestLayoutDimensions(t *testing.T) {
 	}
 }
 
-func TestListPreviewSameHeight(t *testing.T) {
-	sessions := []tmux.Session{
-		{Name: "claude", WindowCount: 1, Created: time.Now(), Attached: true, Directory: "/Users/test/project"},
-		{Name: "dev", WindowCount: 1, Created: time.Now(), Attached: false, Directory: "/Users/test/dev"},
+func TestStackedLayoutHeights(t *testing.T) {
+	tests := []struct {
+		height                         int
+		preview, separator, list, help int
+	}{
+		{height: 20, preview: 9, separator: 1, list: 8, help: 2},
+		{height: 30, preview: 14, separator: 1, list: 13, help: 2},
+		{height: 12, preview: 5, separator: 1, list: 4, help: 2},
 	}
 
-	width := 120
-	height := 30
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("height_%d", tt.height), func(t *testing.T) {
+			got := calculateStackedHeights(tt.height)
+			if got.preview != tt.preview || got.separator != tt.separator ||
+				got.list != tt.list || got.help != tt.help {
+				t.Errorf("calculateStackedHeights(%d) = %#v, want preview=%d separator=%d list=%d help=%d",
+					tt.height, got, tt.preview, tt.separator, tt.list, tt.help)
+			}
+			if got.preview+got.separator+got.list+got.help != tt.height {
+				t.Errorf("allocated height = %d, want %d", got.preview+got.separator+got.list+got.help, tt.height)
+			}
+		})
+	}
+}
 
-	listWidth := width * 2 / 5
-	previewWidth := width - listWidth
-	contentHeight := height - 3
+func TestViewMainStacksPreviewBeforeSelectionAndHelp(t *testing.T) {
+	m := NewModel()
+	m.width = 100
+	m.height = 20
+	m.sessions = []tmux.Session{{
+		Name: "selection-marker", Created: time.Now(), Directory: "/tmp/project",
+	}}
+	m.applyFilter()
+	m.previewKey = previewKeyForItem(*m.currentItem())
+	m.previewContent = "preview-marker"
 
-	listOut := renderSessionList(sessions, 0, "", listWidth, contentHeight)
-	item := &listItem{kind: itemSession, session: &sessions[0]}
-	previewOut := renderPreview(item, "", previewWidth, contentHeight, nil)
+	output := ansi.Strip(m.viewMain())
+	previewAt := strings.Index(output, "preview-marker")
+	selectionAt := strings.Index(output, "tmux sessions")
+	helpAt := strings.Index(output, "navigate")
+	if previewAt < 0 || selectionAt < 0 || helpAt < 0 {
+		t.Fatalf("missing layout markers: preview=%d selection=%d help=%d", previewAt, selectionAt, helpAt)
+	}
+	if previewAt >= selectionAt || selectionAt >= helpAt {
+		t.Errorf("layout order preview/selection/help = %d/%d/%d", previewAt, selectionAt, helpAt)
+	}
+	if lines := strings.Count(output, "\n") + 1; lines > m.height {
+		t.Errorf("output lines = %d, exceeds terminal height %d", lines, m.height)
+	}
+}
 
-	listLines := strings.Count(listOut, "\n") + 1
-	previewLines := strings.Count(previewOut, "\n") + 1
+func TestStackedLayoutFitsExtraSelectionBar(t *testing.T) {
+	m := NewModel()
+	m.width = 80
+	m.height = minimumStackedHeight
+	m.mode = modeFilter
+	m.filterMod = newFilterModel("needle")
 
-	t.Logf("list lines=%d, preview lines=%d, contentHeight=%d", listLines, previewLines, contentHeight)
+	output := m.viewMain()
+	if lines := strings.Count(output, "\n") + 1; lines != m.height {
+		t.Errorf("output lines = %d, want terminal height %d", lines, m.height)
+	}
+}
 
-	if listLines != previewLines {
-		t.Errorf("height mismatch: list=%d preview=%d", listLines, previewLines)
+func TestRenderSeparatorFillsTerminalWidth(t *testing.T) {
+	const width = 80
+	got := ansi.Strip(renderSeparator(width))
+	if ansi.StringWidth(got) != width {
+		t.Errorf("separator width = %d, want %d", ansi.StringWidth(got), width)
+	}
+	if got != strings.Repeat("━", width) {
+		t.Errorf("separator = %q, want heavy horizontal line", got)
 	}
 }
 
