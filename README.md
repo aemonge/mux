@@ -102,7 +102,7 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attac
 
 ![Screenshot](assets/screenshot.png)
 
-The upper half shows a **live preview** of the selected session's terminal output, updated every 500ms. A themed separator divides it from the full-width session tree below, followed by two rows of active key help.
+The upper half shows a **live preview** of the selected session's terminal output, updated every 500ms. A themed separator divides it from the full-width session tree below, followed by two centered rows of active key help.
 
 ### Themes
 
@@ -174,6 +174,7 @@ Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shif
 | `list` | `expand` / `collapse` | `tab`, `right`, `l` / `shift+tab`, `left`, `h` |
 | `list` | `attach` | `enter` |
 | `list` | `create` / `rename` / `kill` | `n` / `r` / `x` |
+| `list` | `move_window` | `m` |
 | `list` | `filter` / `clear_filter` | `/` / `esc` |
 | `list` | `quit` | `q` |
 | `create` | `switch_field` | `tab`, `shift+tab` |
@@ -181,8 +182,12 @@ Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shif
 | `rename` | `submit` / `cancel` | `enter` / `esc` |
 | `filter` | `apply` / `clear` | `enter` / `esc` |
 | `kill` | `confirm` / `cancel` | `y`, `Y` / `any` |
+| `move` | `up` / `down` | `up`, `k` / `down`, `j` |
+| `move` | `confirm` / `cancel` | `enter` / `esc` |
 
 `any` is a fallback reserved for `kill.cancel`; replace it with explicit keys such as `["n", "esc"]` if only those keys should cancel. These settings control keys inside the mux TUI. The external tmux popup binding remains configured separately with `mux setup-keybind`.
+
+To move a window, expand a session, select a window row, and press `m`. Choose another session and press `Enter`; `Esc` cancels. mux preserves the destination's active window and uses its next free window index. Moving the final window out of a session is blocked so the source session cannot be destroyed accidentally.
 
 ### Popup mode (recommended)
 
@@ -235,6 +240,7 @@ These defaults can be replaced through [custom keybindings](#custom-keybindings)
 | `n` | Create new session |
 | `r` | Rename session |
 | `x` | Delete session (with confirmation) |
+| `m` | Move the selected window to another session |
 | `/` | Filter sessions by name or path |
 | `Esc` | Clear filter / cancel |
 | `q` | Quit |

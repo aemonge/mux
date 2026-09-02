@@ -65,6 +65,16 @@ func padOrTruncate(s string, width int) string {
 	return s
 }
 
+func truncateAndCenter(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(s) > width {
+		s = ansi.Truncate(s, width, "")
+	}
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, s)
+}
+
 // fixedBox takes rendered content and forces it to exactly width x height visible area.
 // It splits by newlines, truncates/pads each line to width, and truncates/pads to height lines.
 func fixedBox(content string, width, height int) string {

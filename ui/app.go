@@ -33,6 +33,7 @@ const (
 	modeRename
 	modeFilter
 	modeConfirmKill
+	modeMoveWindow
 )
 
 // Model is the top-level Bubble Tea model for the session manager TUI.
@@ -51,6 +52,7 @@ type Model struct {
 	renameModel    renameModel
 	filterMod      filterModel
 	confirmKillMod confirmKillModel
+	moveWindowMod  moveWindowModel
 	filterText     string
 	attachTarget   previewKey       // set when we want to attach after quitting (zero value = no attach)
 	focusSession   string           // session name to focus cursor on after next load
@@ -240,6 +242,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, loadSessions
 		}
 		return m, nil
+
+	case moveWindowCancelledMsg:
+		m.mode = modeList
+		return m, nil
+
+	case windowMovedMsg:
+		if msg.err != nil {
+			m.moveWindowMod.err = msg.err
+			return m, nil
+		}
+		m.mode = modeList
+		m.focusSession = msg.destination
+		for _, sessionName := range []string{msg.source, msg.destination} {
+			delete(m.tree.windowsCache, sessionName)
+			delete(m.tree.expandedWindow, sessionName)
+			for key := range m.tree.panesCache {
+				if key.session == sessionName {
+					delete(m.tree.panesCache, key)
+				}
+			}
+		}
+		m.tree.setSessionExpanded(msg.destination, true)
+		return m, tea.Batch(
+			loadSessions,
+			loadWindows(msg.source),
+			loadWindows(msg.destination),
+		)
 	}
 
 	switch m.mode {
@@ -251,6 +280,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateFilter(msg)
 	case modeConfirmKill:
 		return m.updateConfirmKill(msg)
+	case modeMoveWindow:
+		return m.updateMoveWindow(msg)
 	default:
 		return m.updateList(msg)
 	}
@@ -301,6 +332,11 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if it := m.currentItem(); it != nil && it.kind == itemSession {
 			m.mode = modeConfirmKill
 			m.confirmKillMod = newConfirmKillModel(it.session.Name)
+		}
+	case m.keyMap.Matches(contextList, "move_window", pressed):
+		if it := m.currentItem(); it != nil && it.kind == itemWindow {
+			m.mode = modeMoveWindow
+			m.moveWindowMod = newMoveWindowModel(it.session, it.window, m.sessions)
 		}
 	case m.keyMap.Matches(contextList, "rename", pressed):
 		if it := m.currentItem(); it != nil && it.kind == itemSession {
@@ -446,6 +482,12 @@ func (m Model) updateConfirmKill(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) updateMoveWindow(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.moveWindowMod, cmd = m.moveWindowMod.Update(msg, m.keyMap)
+	return m, cmd
+}
+
 func (m *Model) currentItem() *listItem {
 	if m.cursor >= 0 && m.cursor < len(m.items) {
 		return &m.items[m.cursor]
@@ -506,6 +548,8 @@ func (m Model) View() string {
 		view = m.viewWithOverlay(m.createModel.View(m.keyMap))
 	case modeRename:
 		view = m.viewWithOverlay(m.renameModel.View(m.keyMap))
+	case modeMoveWindow:
+		view = m.viewWithOverlay(m.moveWindowMod.View(m.keyMap))
 	default:
 		view = m.viewMain()
 	}
@@ -596,6 +640,7 @@ func renderHelp(keyMap KeyMap, width int) string {
 		{
 			{keyMap.Help(contextList, "create"), "new"},
 			{keyMap.Help(contextList, "kill"), "kill"},
+			{keyMap.Help(contextList, "move_window"), "move"},
 			{keyMap.Help(contextList, "rename"), "rename"},
 			{keyMap.Help(contextList, "filter"), "filter"},
 			{keyMap.Help(contextList, "clear_filter"), "clear"},
@@ -610,7 +655,7 @@ func renderHelp(keyMap KeyMap, width int) string {
 			parts = append(parts,
 				helpKeyStyle.Render(item.key)+" "+helpStyle.Render(item.desc))
 		}
-		rendered = append(rendered, padOrTruncate(
+		rendered = append(rendered, truncateAndCenter(
 			strings.Join(parts, helpStyle.Render("  •  ")), width))
 	}
 	return strings.Join(rendered, "\n")

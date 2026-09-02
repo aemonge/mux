@@ -80,7 +80,7 @@ go install github.com/lunemis/mux/cmd/mux@latest
 
 ![Screenshot](assets/screenshot.png)
 
-상단 절반에는 선택한 세션의 **실시간 프리뷰**가 500ms마다 갱신됩니다. 테마 색상의 가로 구분선 아래에는 전체 너비의 세션 트리가 표시되고, 하단 두 줄에는 현재 키 도움말이 표시됩니다.
+상단 절반에는 선택한 세션의 **실시간 프리뷰**가 500ms마다 갱신됩니다. 테마 색상의 가로 구분선 아래에는 전체 너비의 세션 트리가 표시되고, 하단 두 줄에는 현재 키 도움말이 가운데 정렬되어 표시됩니다.
 
 프리뷰 구분선은 `theme/*.json`의 `colors.separator`로 설정하며, 패널의 `colors.border`와 독립적입니다. 기본 테마의 구분선은 파란색(`#2563EB`)입니다.
 
@@ -118,6 +118,7 @@ go install github.com/lunemis/mux/cmd/mux@latest
 | `list` | `expand` / `collapse` | `tab`, `right`, `l` / `shift+tab`, `left`, `h` |
 | `list` | `attach` | `enter` |
 | `list` | `create` / `rename` / `kill` | `n` / `r` / `x` |
+| `list` | `move_window` | `m` |
 | `list` | `filter` / `clear_filter` | `/` / `esc` |
 | `list` | `quit` | `q` |
 | `create` | `switch_field` | `tab`, `shift+tab` |
@@ -125,8 +126,12 @@ go install github.com/lunemis/mux/cmd/mux@latest
 | `rename` | `submit` / `cancel` | `enter` / `esc` |
 | `filter` | `apply` / `clear` | `enter` / `esc` |
 | `kill` | `confirm` / `cancel` | `y`, `Y` / `any` |
+| `move` | `up` / `down` | `up`, `k` / `down`, `j` |
+| `move` | `confirm` / `cancel` | `enter` / `esc` |
 
 `any`는 `kill.cancel`에서만 사용할 수 있는 기본 폴백입니다. `["n", "esc"]`처럼 명시적인 키로 교체하면 해당 키만 취소에 사용됩니다. 이 설정은 mux TUI 내부 키만 변경합니다. tmux 팝업 키는 `mux setup-keybind`로 별도 설정합니다.
+
+윈도우를 이동하려면 세션을 펼치고 윈도우 행을 선택한 뒤 `m`을 누르세요. 대상 세션을 선택하고 `Enter`로 이동하거나 `Esc`로 취소합니다. 대상 세션의 활성 윈도우는 유지되고 비어 있는 다음 인덱스가 사용됩니다. 소스 세션이 실수로 삭제되지 않도록 마지막 윈도우 이동은 차단됩니다.
 
 ### 팝업 모드 (추천)
 
@@ -181,6 +186,7 @@ AI 세션이 활성화되면 `✦ ◈` 같은 아이콘이 상태바에 표시�
 | `n` | 새 세션 생성 |
 | `r` | 세션 이름 변경 |
 | `x` | 세션 삭제 (확인 후) |
+| `m` | 선택한 윈도우를 다른 세션으로 이동 |
 | `/` | 세션 필터링 |
 | `Esc` | 필터 초기화 / 모드 취소 |
 | `q` | 종료 |

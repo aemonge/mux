@@ -159,7 +159,7 @@ func TestRenderedHelpAndPromptsUseConfiguredBindings(t *testing.T) {
 	})
 
 	help := renderHelp(keyMap, 120)
-	assertContainsAll(t, help, "w/s", "navigate", "c", "new")
+	assertContainsAll(t, help, "w/s", "navigate", "c", "new", "m", "move")
 	if lines := strings.Split(help, "\n"); len(lines) != 2 {
 		t.Fatalf("help lines = %d, want exactly 2", len(lines))
 	} else {
@@ -173,6 +173,21 @@ func TestRenderedHelpAndPromptsUseConfiguredBindings(t *testing.T) {
 	assertContainsAll(t, newRenameModel("old").View(keyMap), "ctrl+s", "ctrl+x")
 	assertContainsAll(t, newFilterModel("").View(keyMap), "ctrl+s", "ctrl+x")
 	assertContainsAll(t, newConfirmKillModel("old").View(keyMap), "enter", "esc")
+}
+
+func TestRenderHelpCentersEachRow(t *testing.T) {
+	const width = 160
+	rows := strings.Split(ansi.Strip(renderHelp(DefaultKeyMap(), width)), "\n")
+	if len(rows) != 2 {
+		t.Fatalf("help rows = %d, want 2", len(rows))
+	}
+	for i, row := range rows {
+		left := len(row) - len(strings.TrimLeft(row, " "))
+		right := len(row) - len(strings.TrimRight(row, " "))
+		if difference := left - right; difference < -1 || difference > 1 {
+			t.Errorf("help row %d padding left/right = %d/%d, want centered", i, left, right)
+		}
+	}
 }
 
 func mustKeyMap(t *testing.T, overrides map[string]map[string][]string) KeyMap {

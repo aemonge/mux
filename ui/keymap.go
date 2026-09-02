@@ -13,6 +13,7 @@ const (
 	contextRename = "rename"
 	contextFilter = "filter"
 	contextKill   = "kill"
+	contextMove   = "move"
 )
 
 var contextOrder = []string{
@@ -21,6 +22,7 @@ var contextOrder = []string{
 	contextRename,
 	contextFilter,
 	contextKill,
+	contextMove,
 }
 
 var defaultBindings = map[string]map[string][]string{
@@ -37,6 +39,7 @@ var defaultBindings = map[string]map[string][]string{
 		"attach":       {"enter"},
 		"create":       {"n"},
 		"kill":         {"x"},
+		"move_window":  {"m"},
 		"rename":       {"r"},
 		"filter":       {"/"},
 		"clear_filter": {"esc"},
@@ -58,6 +61,12 @@ var defaultBindings = map[string]map[string][]string{
 	contextKill: {
 		"confirm": {"y", "Y"},
 		"cancel":  {"any"},
+	},
+	contextMove: {
+		"up":      {"up", "k"},
+		"down":    {"down", "j"},
+		"confirm": {"enter"},
+		"cancel":  {"esc"},
 	},
 }
 
