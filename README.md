@@ -187,7 +187,7 @@ Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shif
 
 `any` is a fallback reserved for `kill.cancel`; replace it with explicit keys such as `["n", "esc"]` if only those keys should cancel. These settings control keys inside the mux TUI. The external tmux popup binding remains configured separately with `mux setup-keybind`.
 
-To move a window, expand a session, select a window row, and press `m`. Choose another session and press `Enter`; `Esc` cancels. mux preserves the destination's active window and uses its next free window index. Moving the final window out of a session is blocked so the source session cannot be destroyed accidentally.
+To move a window, expand a session, select a window row, and press `m`. Choose another session and press `Enter`; `Esc` cancels. mux preserves the destination's active window and uses its next free window index. Moving a session's final window is allowed; the chooser warns that tmux will remove the now-empty source session and may detach clients attached to it.
 
 ### Popup mode (recommended)
 

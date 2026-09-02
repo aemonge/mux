@@ -28,35 +28,30 @@ func TestNewMoveWindowModelOffersOtherSessions(t *testing.T) {
 	}
 }
 
-func TestNewMoveWindowModelRejectsUnsafeOrImpossibleMove(t *testing.T) {
-	tests := []struct {
-		name     string
-		source   tmux.Session
-		sessions []tmux.Session
-		wantErr  string
-	}{
-		{
-			name:     "final source window",
-			source:   tmux.Session{Name: "source", WindowCount: 1},
-			sessions: []tmux.Session{{Name: "source"}, {Name: "other"}},
-			wantErr:  "final window",
-		},
-		{
-			name:     "no destination",
-			source:   tmux.Session{Name: "source", WindowCount: 2},
-			sessions: []tmux.Session{{Name: "source"}},
-			wantErr:  "no other session",
-		},
-	}
+func TestNewMoveWindowModelAllowsFinalWindowWithWarning(t *testing.T) {
+	source := &tmux.Session{Name: "source", WindowCount: 1}
+	window := &tmux.Window{Index: 1, Name: "editor"}
+	model := newMoveWindowModel(source, window, []tmux.Session{
+		{Name: "source"}, {Name: "other"},
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			window := &tmux.Window{Index: 1, Name: "editor"}
-			model := newMoveWindowModel(&tt.source, window, tt.sessions)
-			if model.err == nil || !strings.Contains(model.err.Error(), tt.wantErr) {
-				t.Fatalf("error = %v, want containing %q", model.err, tt.wantErr)
-			}
-		})
+	if model.err != nil {
+		t.Fatalf("newMoveWindowModel() error = %v", model.err)
+	}
+	if !strings.Contains(model.warning, "remove session \"source\"") {
+		t.Errorf("warning = %q, want source-session removal warning", model.warning)
+	}
+	if view := model.View(DefaultKeyMap()); !strings.Contains(view, model.warning) {
+		t.Errorf("View() does not show warning %q", model.warning)
+	}
+}
+
+func TestNewMoveWindowModelRejectsMissingDestination(t *testing.T) {
+	source := &tmux.Session{Name: "source", WindowCount: 1}
+	window := &tmux.Window{Index: 1, Name: "editor"}
+	model := newMoveWindowModel(source, window, []tmux.Session{{Name: "source"}})
+	if model.err == nil || !strings.Contains(model.err.Error(), "no other session") {
+		t.Fatalf("error = %v, want no other session", model.err)
 	}
 }
 

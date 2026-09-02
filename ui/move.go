@@ -14,6 +14,7 @@ type moveWindowModel struct {
 	sourceWindow  tmux.Window
 	destinations  []string
 	cursor        int
+	warning       string
 	err           error
 }
 
@@ -36,10 +37,10 @@ func newMoveWindowModel(source *tmux.Session, window *tmux.Window, sessions []tm
 		}
 	}
 
-	switch {
-	case source.WindowCount <= 1:
-		model.err = fmt.Errorf("cannot move the final window from session %q", source.Name)
-	case len(model.destinations) == 0:
+	if source.WindowCount <= 1 {
+		model.warning = fmt.Sprintf("Moving this final window will remove session %q.", source.Name)
+	}
+	if len(model.destinations) == 0 {
 		model.err = fmt.Errorf("no other session is available")
 	}
 	return model
@@ -88,6 +89,10 @@ func (m moveWindowModel) View(keyMap KeyMap) string {
 	if m.err != nil {
 		b.WriteString(errorStyle.Render(m.err.Error()))
 	} else {
+		if m.warning != "" {
+			b.WriteString(errorStyle.Render(m.warning))
+			b.WriteString("\n\n")
+		}
 		b.WriteString(helpStyle.Render("Destination session:"))
 		b.WriteByte('\n')
 		for i, destination := range m.destinations {

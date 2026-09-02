@@ -1,9 +1,6 @@
 package tmux
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestParseWindowLine(t *testing.T) {
 	tests := []struct {
@@ -197,9 +194,6 @@ func TestListPanesWithMock(t *testing.T) {
 
 func TestMoveWindowUsesNextFreeDestinationIndex(t *testing.T) {
 	withMock(t, func(m *mockRunner) {
-		m.OnOutput([]byte("1|shell|1\n2|editor|0"), nil,
-			"tmux", "list-windows", "-t", "source", "-F", windowListFormat)
-
 		if err := MoveWindow("source", 2, "destination"); err != nil {
 			t.Fatalf("MoveWindow() error = %v", err)
 		}
@@ -213,17 +207,14 @@ func TestMoveWindowUsesNextFreeDestinationIndex(t *testing.T) {
 	})
 }
 
-func TestMoveWindowRejectsFinalSourceWindowAtExecutionTime(t *testing.T) {
+func TestMoveWindowDoesNotBlockFinalSourceWindow(t *testing.T) {
 	withMock(t, func(m *mockRunner) {
-		m.OnOutput([]byte("2|editor|1"), nil,
-			"tmux", "list-windows", "-t", "source", "-F", windowListFormat)
-
-		err := MoveWindow("source", 2, "destination")
-		if err == nil || !strings.Contains(err.Error(), "final window") {
-			t.Fatalf("MoveWindow() error = %v, want final window error", err)
+		if err := MoveWindow("single-window-source", 0, "destination"); err != nil {
+			t.Fatalf("MoveWindow() error = %v", err)
 		}
-		if len(m.runs) != 0 {
-			t.Errorf("run calls = %d, want 0", len(m.runs))
+		want := "tmux move-window -d -s single-window-source:0 -t destination:"
+		if len(m.runs) != 1 || m.runs[0] != want {
+			t.Errorf("run calls = %q, want [%q]", m.runs, want)
 		}
 	})
 }

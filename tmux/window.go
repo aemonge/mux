@@ -44,14 +44,6 @@ func ListWindows(sessionName string) ([]Window, error) {
 // MoveWindow moves a window into the destination session's next free index
 // without changing the destination session's active window.
 func MoveWindow(sourceSession string, windowIndex int, destinationSession string) error {
-	windows, err := ListWindows(sourceSession)
-	if err != nil {
-		return fmt.Errorf("check source session %s: %w", sourceSession, err)
-	}
-	if len(windows) <= 1 {
-		return fmt.Errorf("cannot move the final window from session %q", sourceSession)
-	}
-
 	source := fmt.Sprintf("%s:%d", sourceSession, windowIndex)
 	destination := destinationSession + ":"
 	if err := runner.Run("tmux", "move-window", "-d", "-s", source, "-t", destination); err != nil {
