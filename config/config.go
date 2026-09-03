@@ -42,7 +42,7 @@ func Load() (Config, error) {
 		}
 		return Config{}, fmt.Errorf("read config %s: %w", path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var value Config
 	if err := json.NewDecoder(file).Decode(&value); err != nil {

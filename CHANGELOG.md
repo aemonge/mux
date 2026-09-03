@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Built-in `default` and `solarized-gruvbox` color themes, selectable by CLI flag, `MUX_THEME`, or XDG configuration.
+- Configurable, context-aware TUI keybindings with conflict validation and active-key help text.
+- Stacked preview and full-width session tree layout with a themed separator and centered help rows.
+- Window movement between sessions, including an explicit warning when moving the final window removes the source session.
 - Multi-window/pane tree expansion in the session list (#14):
   - `Tab` / `→` / `l` to expand a session into its windows, then a window into its panes
   - `Shift+Tab` / `←` / `h` to collapse one level
@@ -26,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/test-fixture.sh` for spinning up test sessions with multiple windows/panes
 
 ### Changed
+- Session ordering now behaves like an OS switcher: previous session first, remaining sessions in MRU order, and the invoking session last; background output no longer changes recency.
+- Popup launch and generated keybindings now preserve the invoking tmux session for switcher ordering.
 - `Session.Windows` (int) split into `Session.WindowCount` (int) + `Session.Windows` ([]Window) — the latter is lazily populated on demand
 - `AttachToSession(name)` signature extended to `AttachToSession(name, windowIdx, paneIdx)` — pass `-1` to keep tmux defaults
 - Cross-platform `shortenPath` using `os.UserHomeDir()` instead of hardcoded `/Users/`

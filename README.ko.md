@@ -36,11 +36,10 @@ mux                             # 세션 매니저 실행
 팝업 모드 설정 (tmux 위에 오버레이로 띄우기):
 
 ```bash
-mux setup-keybind               # prefix + m 바인딩
-tmux source-file ~/.tmux.conf   # 설정 리로드
+mux setup-keybind               # prefix + m을 바인딩하고 리로드 명령 출력
 ```
 
-이제 tmux에서 `Ctrl+b` → `m`으로 mux를 열 수 있습니다.
+출력된 리로드 명령을 실행하세요. 이제 tmux에서 `Ctrl+b` → `m`으로 mux를 열 수 있습니다.
 
 ## 설치
 
@@ -84,14 +83,43 @@ go install github.com/lunemis/mux/cmd/mux@latest
 
 세션은 OS 창 전환기처럼 동작합니다. tmux 안에서는 직전에 사용한 세션이 맨 위에 표시되고, 나머지는 MRU 순서로 이어지며, mux를 호출한 현재 세션은 맨 아래로 이동합니다. 바로 `Enter`를 누르면 이전 세션으로 전환되고 mux를 다시 열면 되돌아갈 수 있습니다. 백그라운드 출력은 목록 순서를 바꾸지 않습니다. tmux 밖에서는 MRU 우선 순서를 유지합니다. 한 번도 방문하지 않은 세션은 생성 시간(최신 우선), 그다음 이름 순으로 정렬됩니다.
 
-이 전환기 동작 이전에 만든 팝업 키바인딩은 호출한 원래 세션을 팝업에 전달하도록 한 번 다시 생성해야 합니다:
+이 전환기 동작 이전에 mux로 만든 팝업 키바인딩은 호출한 원래 세션을 팝업에 전달하도록 한 번 다시 생성해야 합니다. `setup-keybind`가 출력하는 리로드 명령을 실행하세요:
 
 ```bash
 mux setup-keybind
-tmux source-file ~/.tmux.conf
 ```
 
-프리뷰 구분선은 `theme/*.json`의 `colors.separator`로 설정하며, 패널의 `colors.border`와 독립적입니다. 기본 테마의 구분선은 파란색(`#2563EB`)입니다.
+직접 관리하는 팝업 키바인딩은 `mux`를 바로 실행하지 말고 호출한 세션을 전달하여 `mux popup`을 실행해야 합니다. 다음은 전역 `Ctrl+Backspace` 바인딩 예시입니다:
+
+```tmux
+bind-key -n C-BSpace run-shell 'MUX_ORIGIN_SESSION=#{q:session_name} "/absolute/path/to/mux" popup'
+```
+
+### 테마
+
+mux에는 두 가지 내장 테마가 있습니다:
+
+- `default` — 기존 어두운 터미널 팔레트
+- `solarized-gruvbox` — Solarized 대비와 Gruvbox Light Soft 색상을 조합한 밝은 테마
+
+`--theme`으로 테마를 선택할 수 있습니다:
+
+```bash
+mux --theme solarized-gruvbox
+mux --theme solarized-gruvbox popup
+```
+
+`$XDG_CONFIG_HOME/mux/config.json`(`XDG_CONFIG_HOME`이 없으면 `~/.config/mux/config.json`)에 저장하려면:
+
+```json
+{
+  "theme": "solarized-gruvbox"
+}
+```
+
+현재 환경에만 적용하려면 `MUX_THEME=solarized-gruvbox`를 설정하세요. 우선순위는 `--theme`, `MUX_THEME`, XDG 설정, `default` 순입니다.
+
+테마 팔레트는 [`theme/*.json`](theme/)에 있으며 바이너리에 내장됩니다. 새 내장 테마를 추가할 때는 기존 파일을 복사해 고유한 `name`, 모든 UI 의미 색상, AI 도구 색상을 지정하세요. 터미널 배경을 유지하려면 `colors.background`를 `"NONE"`으로 설정합니다. 프리뷰 구분선의 `colors.separator`는 패널의 `colors.border`와 독립적입니다.
 
 ### 커스텀 키바인딩
 
@@ -150,12 +178,9 @@ tmux 안에서 작업 중일 때, 어떤 프로그램이 실행 중이어도 키
 # 키바인딩 설정 (최초 1회)
 mux setup-keybind          # prefix + m (기본값)
 mux setup-keybind Space    # 다른 키로 변경 가능
-
-# tmux 설정 리로드
-tmux source-file ~/.tmux.conf
 ```
 
-`mux popup`으로 수동 실행도 가능합니다.
+`setup-keybind`가 출력하는 리로드 명령을 실행하세요. `mux popup`으로 수동 실행도 가능합니다.
 
 > **참고:** tmux 3.2 이상 필요
 

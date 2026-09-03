@@ -76,7 +76,11 @@ func TestConfigureTheme(t *testing.T) {
 	if err := configureTheme("solarized-gruvbox"); err != nil {
 		t.Fatalf("configureTheme() error = %v", err)
 	}
-	defer configureTheme("default")
+	t.Cleanup(func() {
+		if err := configureTheme("default"); err != nil {
+			t.Errorf("restore default theme: %v", err)
+		}
+	})
 
 	err := configureTheme("unknown")
 	if err == nil || !strings.Contains(err.Error(), "unknown") {

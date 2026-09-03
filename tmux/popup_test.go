@@ -17,14 +17,49 @@ func TestPopupCommandArgsCarryResolvedOriginSession(t *testing.T) {
 
 func TestPopupBindLineExpandsOriginBeforeLaunchingPopup(t *testing.T) {
 	got := popupBindLine("m", "/bin/mux")
-	for _, want := range []string{
-		`bind m run-shell`,
-		`MUX_ORIGIN_SESSION=#{q:session_name}`,
-		`"/bin/mux" popup`,
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("popup bind line %q does not contain %q", got, want)
-		}
+	want := `bind m run-shell 'MUX_ORIGIN_SESSION=#{q:session_name} "/bin/mux" popup'`
+	if got != want {
+		t.Errorf("popup bind line = %q, want %q", got, want)
+	}
+}
+
+func TestOpenPopupPassesResolvedOriginToChild(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	fakeTmux := filepath.Join(dir, "tmux")
+	script := `#!/bin/sh
+if [ "$1" = "-V" ]; then
+	printf 'tmux 3.4\n'
+	exit 0
+fi
+printf '%s\n' "$@" > "$MUX_TEST_ARGS"
+`
+	if err := os.WriteFile(fakeTmux, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("TMUX", filepath.Join(dir, "socket")+",1,0")
+	t.Setenv(originSessionEnv, "work")
+	t.Setenv("MUX_TEST_ARGS", argsPath)
+
+	if err := OpenPopup("--theme", "default"); err != nil {
+		t.Fatalf("OpenPopup() error = %v", err)
+	}
+	data, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	muxPath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(strings.TrimSpace(string(data)), "\n")
+	want := []string{
+		"display-popup", "-E", "-w", popupWidth, "-h", popupHeight,
+		"-e", originSessionEnv + "=work", muxPath, "--theme", "default",
+	}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Errorf("popup process args = %q, want %q", got, want)
 	}
 }
 
@@ -33,14 +68,9 @@ func TestInstallerPopupBindCarriesOriginSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{
-		`run-shell`,
-		`MUX_ORIGIN_SESSION=#{q:session_name}`,
-		`\"mux\" popup`,
-	} {
-		if !strings.Contains(string(data), want) {
-			t.Errorf("install.sh popup binding does not contain %q", want)
-		}
+	want := `local line="bind-key m run-shell 'MUX_ORIGIN_SESSION=#{q:session_name} \"mux\" popup'"`
+	if !strings.Contains(string(data), want) {
+		t.Errorf("install.sh does not contain popup binding %q", want)
 	}
 }
 

@@ -58,11 +58,10 @@ mux                             # launch the session manager
 For the best experience, set up popup mode (opens mux as a floating overlay):
 
 ```bash
-mux setup-keybind               # binds prefix + m
-tmux source-file ~/.tmux.conf   # reload config
+mux setup-keybind               # binds prefix + m and prints the reload command
 ```
 
-Now press `Ctrl+b` then `m` anywhere in tmux to open mux.
+Run the reload command it prints. Then press `Ctrl+b` followed by `m` anywhere in tmux to open mux.
 
 ## Installation
 
@@ -106,11 +105,16 @@ The upper half shows a **live preview** of the selected session's terminal outpu
 
 Sessions behave like an OS window switcher. Inside tmux, the previously used session appears first, remaining sessions follow in MRU order, and the current invoking session moves to the bottom. Pressing `Enter` immediately toggles to the previous session; reopening mux toggles back. Background output does not reorder the list. Outside tmux, the list remains MRU-first. Never-visited sessions fall back to newest creation time, then name.
 
-Popup bindings created before this switcher behavior must be regenerated once so they pass the originating session into the popup:
+mux-managed popup bindings created before this switcher behavior must be regenerated once so they pass the originating session into the popup. Run the reload command printed by `setup-keybind`:
 
 ```bash
 mux setup-keybind
-tmux source-file ~/.tmux.conf
+```
+
+If you maintain a custom popup binding, make it invoke `mux popup` with the originating session instead of launching `mux` directly. For example, this global binding uses `Ctrl+Backspace`:
+
+```tmux
+bind-key -n C-BSpace run-shell 'MUX_ORIGIN_SESSION=#{q:session_name} "/absolute/path/to/mux" popup'
 ```
 
 ### Themes
@@ -206,12 +210,9 @@ Open mux as a floating overlay inside tmux — works even while AI CLIs are runn
 # Set up the keybinding (one-time)
 mux setup-keybind          # prefix + m (default)
 mux setup-keybind Space    # or use a different key
-
-# Reload tmux config
-tmux source-file ~/.tmux.conf
 ```
 
-You can also open the popup manually with `mux popup`.
+Run the reload command printed by `setup-keybind`. You can also open the popup manually with `mux popup`.
 
 > **Note:** Popup mode requires tmux 3.2+
 
