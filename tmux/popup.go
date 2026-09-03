@@ -47,19 +47,31 @@ func OpenPopup(args ...string) error {
 		return fmt.Errorf("failed to find mux executable: %w", err)
 	}
 
+	origin := currentSessionName()
+	cmd := exec.Command("tmux", popupCommandArgs(muxPath, origin, args...)...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func popupCommandArgs(muxPath, origin string, args ...string) []string {
 	popupArgs := []string{
 		"display-popup",
 		"-E",
 		"-w", popupWidth,
 		"-h", popupHeight,
-		muxPath,
 	}
-	popupArgs = append(popupArgs, args...)
-	cmd := exec.Command("tmux", popupArgs...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if origin != "" {
+		popupArgs = append(popupArgs, "-e", originSessionEnv+"="+origin)
+	}
+	popupArgs = append(popupArgs, muxPath)
+	return append(popupArgs, args...)
+}
+
+func popupBindLine(key, muxPath string) string {
+	return fmt.Sprintf(`bind %s run-shell '%s=#{q:session_name} "%s" popup'`,
+		key, originSessionEnv, muxPath)
 }
 
 func findTmuxConf() (string, error) {
@@ -150,7 +162,7 @@ func SetupKeybind(key string) error {
 	if err != nil {
 		return err
 	}
-	bindLine := fmt.Sprintf(`bind %s display-popup -E -w %s -h %s "%s"`, key, popupWidth, popupHeight, muxPath)
+	bindLine := popupBindLine(key, muxPath)
 
 	if isOhMyTmux(confPath) {
 		localPath := findTmuxConfLocal(confPath)

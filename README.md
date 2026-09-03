@@ -104,6 +104,15 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attac
 
 The upper half shows a **live preview** of the selected session's terminal output, updated every 500ms. A themed separator divides it from the full-width session tree below, followed by two centered rows of active key help.
 
+Sessions behave like an OS window switcher. Inside tmux, the previously used session appears first, remaining sessions follow in MRU order, and the current invoking session moves to the bottom. Pressing `Enter` immediately toggles to the previous session; reopening mux toggles back. Background output does not reorder the list. Outside tmux, the list remains MRU-first. Never-visited sessions fall back to newest creation time, then name.
+
+Popup bindings created before this switcher behavior must be regenerated once so they pass the originating session into the popup:
+
+```bash
+mux setup-keybind
+tmux source-file ~/.tmux.conf
+```
+
 ### Themes
 
 mux includes two built-in color themes:

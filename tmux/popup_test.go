@@ -7,6 +7,43 @@ import (
 	"testing"
 )
 
+func TestPopupCommandArgsCarryResolvedOriginSession(t *testing.T) {
+	got := strings.Join(popupCommandArgs("/bin/mux", "work", "--theme", "default"), " ")
+	want := "display-popup -E -w 85% -h 80% -e MUX_ORIGIN_SESSION=work /bin/mux --theme default"
+	if got != want {
+		t.Errorf("popup args = %q, want %q", got, want)
+	}
+}
+
+func TestPopupBindLineExpandsOriginBeforeLaunchingPopup(t *testing.T) {
+	got := popupBindLine("m", "/bin/mux")
+	for _, want := range []string{
+		`bind m run-shell`,
+		`MUX_ORIGIN_SESSION=#{q:session_name}`,
+		`"/bin/mux" popup`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("popup bind line %q does not contain %q", got, want)
+		}
+	}
+}
+
+func TestInstallerPopupBindCarriesOriginSession(t *testing.T) {
+	data, err := os.ReadFile("../install.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`run-shell`,
+		`MUX_ORIGIN_SESSION=#{q:session_name}`,
+		`\"mux\" popup`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("install.sh popup binding does not contain %q", want)
+		}
+	}
+}
+
 const sampleOhMyTmuxLocal = `# -- general -------------------------------------------------------------------
 
 tmux_conf_24b_colour=true

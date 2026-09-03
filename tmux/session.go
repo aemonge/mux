@@ -2,15 +2,19 @@ package tmux
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const listFormat = "#{session_name}|#{session_windows}|#{session_created}|#{session_attached}|#{pane_current_path}|#{session_activity}|#{pane_current_command}|#{pane_pid}"
+const (
+	listFormat       = "#{session_name}|#{session_windows}|#{session_created}|#{session_attached}|#{pane_current_path}|#{session_last_attached}|#{pane_current_command}|#{pane_pid}"
+	originSessionEnv = "MUX_ORIGIN_SESSION"
+)
 
-// ListSessions returns all tmux sessions sorted by attached status and recent activity.
+// ListSessions returns sessions in OS-switcher order: previous first and current last.
 func ListSessions() ([]Session, error) {
 	out, err := runner.Output("tmux", "list-sessions", "-F", listFormat)
 	if err != nil {
@@ -35,12 +39,7 @@ func ListSessions() ([]Session, error) {
 		sessions = append(sessions, s)
 	}
 
-	sort.Slice(sessions, func(i, j int) bool {
-		if sessions[i].Attached != sessions[j].Attached {
-			return sessions[i].Attached
-		}
-		return sessions[i].Activity.After(sessions[j].Activity)
-	})
+	sortSessionsForSwitcher(sessions, currentSessionName())
 
 	return sessions, nil
 }
@@ -54,8 +53,13 @@ func parseLine(line string) (Session, error) {
 	windows, _ := strconv.Atoi(parts[1])
 	createdUnix, _ := strconv.ParseInt(parts[2], 10, 64)
 	attached, _ := strconv.Atoi(parts[3])
-	activityUnix, _ := strconv.ParseInt(parts[5], 10, 64)
+	lastAttachedUnix, _ := strconv.ParseInt(parts[5], 10, 64)
 	panePID, _ := strconv.Atoi(parts[7])
+
+	var lastAttached time.Time
+	if lastAttachedUnix > 0 {
+		lastAttached = time.Unix(lastAttachedUnix, 0)
+	}
 
 	activeCommand := resolveCommand(panePID, parts[6])
 	gitInfo := LookupGitInfo(parts[4])
@@ -64,7 +68,7 @@ func parseLine(line string) (Session, error) {
 		Name:          parts[0],
 		WindowCount:   windows,
 		Created:       time.Unix(createdUnix, 0),
-		Activity:      time.Unix(activityUnix, 0),
+		LastAttached:  lastAttached,
 		Attached:      attached > 0,
 		Directory:     parts[4],
 		ActiveCommand: activeCommand,
@@ -72,6 +76,46 @@ func parseLine(line string) (Session, error) {
 		GitBranch:     gitInfo.Branch,
 		IsWorktree:    gitInfo.IsWorktree,
 	}, nil
+}
+
+func currentSessionName() string {
+	if origin := os.Getenv(originSessionEnv); origin != "" {
+		return origin
+	}
+	pane := os.Getenv("TMUX_PANE")
+	if pane == "" {
+		return ""
+	}
+	out, err := runner.Output("tmux", "display-message", "-p", "-t", pane, "#{session_name}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func sortSessionsForSwitcher(sessions []Session, current string) {
+	sort.Slice(sessions, func(i, j int) bool {
+		if !sessions[i].LastAttached.Equal(sessions[j].LastAttached) {
+			return sessions[i].LastAttached.After(sessions[j].LastAttached)
+		}
+		if !sessions[i].Created.Equal(sessions[j].Created) {
+			return sessions[i].Created.After(sessions[j].Created)
+		}
+		return sessions[i].Name < sessions[j].Name
+	})
+
+	if current == "" {
+		return
+	}
+	for i := range sessions {
+		if sessions[i].Name != current {
+			continue
+		}
+		active := sessions[i]
+		copy(sessions[i:], sessions[i+1:])
+		sessions[len(sessions)-1] = active
+		return
+	}
 }
 
 // CreateSession creates a new detached tmux session with the given name.

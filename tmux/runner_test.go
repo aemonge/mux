@@ -45,6 +45,8 @@ func (m *mockRunner) Run(name string, args ...string) error {
 
 func withMock(t *testing.T, fn func(m *mockRunner)) {
 	t.Helper()
+	t.Setenv("TMUX_PANE", "")
+	t.Setenv("MUX_ORIGIN_SESSION", "")
 	m := newMockRunner()
 	old := runner
 	SetRunner(m)
@@ -58,8 +60,9 @@ func withMock(t *testing.T, fn func(m *mockRunner)) {
 
 func TestListSessionsWithMock(t *testing.T) {
 	withMock(t, func(m *mockRunner) {
+		t.Setenv("TMUX_PANE", "%9")
 		now := time.Now().Unix()
-		line1 := fmt.Sprintf("dev|2|%d|1|/home/user/dev|%d|bash|100", now-3600, now-60)
+		line1 := fmt.Sprintf("dev|2|%d|1|/home/user/dev|%d|bash|100", now-3600, now-3600)
 		line2 := fmt.Sprintf("ai|1|%d|0|/home/user/ai|%d|claude|200", now-7200, now-120)
 		out := line1 + "\n" + line2
 
@@ -68,6 +71,8 @@ func TestListSessionsWithMock(t *testing.T) {
 		// Mock resolveCommand calls — pgrep returns nothing (so rawCmd is used)
 		m.OnOutput(nil, fmt.Errorf("no children"), "pgrep", "-P", "100")
 		m.OnOutput(nil, fmt.Errorf("no children"), "pgrep", "-P", "200")
+		m.OnOutput([]byte("ai\n"), nil,
+			"tmux", "display-message", "-p", "-t", "%9", "#{session_name}")
 
 		sessions, err := ListSessions()
 		if err != nil {
@@ -76,9 +81,45 @@ func TestListSessionsWithMock(t *testing.T) {
 		if len(sessions) != 2 {
 			t.Fatalf("expected 2 sessions, got %d", len(sessions))
 		}
-		// Attached sessions first
-		if sessions[0].Name != "dev" {
-			t.Errorf("expected first session 'dev', got %q", sessions[0].Name)
+		// The current session is last, so Enter toggles to the previous session.
+		if sessions[0].Name != "dev" || sessions[1].Name != "ai" {
+			t.Errorf("session order = [%s %s], want [dev ai]", sessions[0].Name, sessions[1].Name)
+		}
+	})
+}
+
+func TestCurrentSessionNamePrefersPopupOrigin(t *testing.T) {
+	withMock(t, func(m *mockRunner) {
+		t.Setenv("MUX_ORIGIN_SESSION", "origin")
+		t.Setenv("TMUX_PANE", "%popup")
+
+		got := currentSessionName()
+		if got != "origin" {
+			t.Errorf("currentSessionName() = %q, want origin", got)
+		}
+	})
+}
+
+func TestCurrentSessionNameUsesInvokingPane(t *testing.T) {
+	withMock(t, func(m *mockRunner) {
+		t.Setenv("TMUX_PANE", "%42")
+		m.OnOutput([]byte("work\n"), nil,
+			"tmux", "display-message", "-p", "-t", "%42", "#{session_name}")
+
+		got := currentSessionName()
+		if got != "work" {
+			t.Errorf("currentSessionName() = %q, want work", got)
+		}
+	})
+}
+
+func TestCurrentSessionNameOutsideTmuxIsEmpty(t *testing.T) {
+	withMock(t, func(m *mockRunner) {
+		if got := currentSessionName(); got != "" {
+			t.Errorf("currentSessionName() = %q, want empty", got)
+		}
+		if len(m.outputs) != 0 {
+			t.Errorf("unexpected tmux output calls configured: %d", len(m.outputs))
 		}
 	})
 }

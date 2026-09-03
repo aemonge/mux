@@ -182,7 +182,7 @@ setup_keybind() {
         else
             conf="${HOME}/.tmux.conf"
         fi
-        local line='bind-key m display-popup -E -w 80% -h 80% "mux"'
+        local line="bind-key m run-shell 'MUX_ORIGIN_SESSION=#{q:session_name} \"mux\" popup'"
         local marker='# mux popup keybinding'
 
         # Route to .tmux.conf.local for oh-my-tmux users — the main conf gets

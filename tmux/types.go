@@ -10,7 +10,7 @@ type Session struct {
 	WindowCount   int      // total window count reported by list-sessions
 	Windows       []Window // nil until enumerated via ListWindows
 	Created       time.Time
-	Activity      time.Time
+	LastAttached  time.Time
 	Attached      bool
 	Directory     string
 	ActiveCommand string
