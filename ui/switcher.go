@@ -61,6 +61,29 @@ func (m *Model) restoreIdentity(identity itemIdentity) bool {
 // selectorIndices returns the flattened-tree indices belonging to the current
 // hierarchy level. The tree remains the source of truth, while the switcher
 // presents only sibling sessions, windows, or panes at one time.
+func (m *Model) selectInitialSwitcherTarget() bool {
+	sessionIndices := make([]int, 0, len(m.items))
+	currentPosition := -1
+	for i, item := range m.items {
+		if item.kind != itemSession {
+			continue
+		}
+		if item.session.Current {
+			currentPosition = len(sessionIndices)
+		}
+		sessionIndices = append(sessionIndices, i)
+	}
+	if len(sessionIndices) == 0 {
+		return false
+	}
+	position := 0
+	if currentPosition >= 0 && currentPosition+1 < len(sessionIndices) {
+		position = currentPosition + 1
+	}
+	m.cursor = sessionIndices[position]
+	return true
+}
+
 func (m *Model) selectorIndices() []int {
 	current := m.currentItem()
 	if current == nil {

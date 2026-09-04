@@ -81,9 +81,12 @@ func TestListSessionsWithMock(t *testing.T) {
 		if len(sessions) != 2 {
 			t.Fatalf("expected 2 sessions, got %d", len(sessions))
 		}
-		// The current session is last, so Enter toggles to the previous session.
-		if sessions[0].Name != "dev" || sessions[1].Name != "ai" {
-			t.Errorf("session order = [%s %s], want [dev ai]", sessions[0].Name, sessions[1].Name)
+		// The current session is first and the UI initially highlights the previous session.
+		if sessions[0].Name != "ai" || sessions[1].Name != "dev" {
+			t.Errorf("session order = [%s %s], want [ai dev]", sessions[0].Name, sessions[1].Name)
+		}
+		if !sessions[0].Current || sessions[1].Current {
+			t.Errorf("Current flags = [%t %t], want [true false]", sessions[0].Current, sessions[1].Current)
 		}
 	})
 }

@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/test-fixture.sh` for spinning up test sessions with multiple windows/panes
 
 ### Changed
-- Session ordering now behaves like an OS switcher: previous session first, remaining sessions in MRU order, and the invoking session last; background output no longer changes recency.
+- Session ordering now behaves like an OS switcher: the invoking session is displayed first, the previous session is displayed second and initially highlighted, and older sessions follow in MRU order; background output no longer changes recency.
 - Popup launch now uses a borderless `100% × 100%` canvas and generated keybindings preserve the invoking tmux session for switcher ordering.
 - `Session.Windows` (int) split into `Session.WindowCount` (int) + `Session.Windows` ([]Window) — the latter is lazily populated on demand
 - `AttachToSession(name)` signature extended to `AttachToSession(name, windowIdx, paneIdx)` — pass `-1` to keep tmux defaults

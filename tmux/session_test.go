@@ -82,6 +82,37 @@ func TestParseLine(t *testing.T) {
 	}
 }
 
+func TestCurrentSessionForSwitcher(t *testing.T) {
+	sessions := []Session{{Name: "attached", Attached: true}, {Name: "reported", Attached: true}}
+	if got := currentSessionForSwitcher(sessions, "reported"); got != "reported" {
+		t.Errorf("valid reported session = %q, want reported", got)
+	}
+
+	sessions[1].Attached = false
+	if got := currentSessionForSwitcher(sessions, "popup-pane"); got != "attached" {
+		t.Errorf("invalid reported session fallback = %q, want attached", got)
+	}
+}
+
+func TestSoleAttachedSession(t *testing.T) {
+	tests := []struct {
+		name     string
+		sessions []Session
+		want     string
+	}{
+		{name: "one attached", sessions: []Session{{Name: "current", Attached: true}, {Name: "other"}}, want: "current"},
+		{name: "none attached", sessions: []Session{{Name: "one"}, {Name: "two"}}},
+		{name: "multiple attached is ambiguous", sessions: []Session{{Name: "one", Attached: true}, {Name: "two", Attached: true}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := soleAttachedSession(test.sessions); got != test.want {
+				t.Errorf("soleAttachedSession() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestSortSessionsForSwitcher(t *testing.T) {
 	base := time.Unix(1_700_000_000, 0)
 	sessions := []Session{
@@ -99,11 +130,35 @@ func TestSortSessionsForSwitcher(t *testing.T) {
 	for i, session := range sessions {
 		got[i] = session.Name
 	}
-	want := []string{"alpha", "zeta", "attached-old", "never-new", "never-old", "recent"}
+	want := []string{"recent", "alpha", "zeta", "attached-old", "never-new", "never-old"}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("sorted names = %q, want %q", got, want)
 		}
+		if sessions[i].Current != (i == 0) {
+			t.Errorf("session %q Current = %t, want %t", sessions[i].Name, sessions[i].Current, i == 0)
+		}
+	}
+}
+
+func TestSortSessionsForSwitcherPinsCurrentAheadOfNewerSession(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	sessions := []Session{
+		{Name: "newest", LastAttached: base},
+		{Name: "current", LastAttached: base.Add(-time.Hour)},
+		{Name: "older", LastAttached: base.Add(-2 * time.Hour)},
+	}
+
+	sortSessionsForSwitcher(sessions, "current")
+	got := []string{sessions[0].Name, sessions[1].Name, sessions[2].Name}
+	want := []string{"current", "newest", "older"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("sorted names = %q, want %q", got, want)
+		}
+	}
+	if !sessions[0].Current {
+		t.Error("pinned current session is not marked Current")
 	}
 }
 

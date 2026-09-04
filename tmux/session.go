@@ -14,7 +14,8 @@ const (
 	originSessionEnv = "MUX_ORIGIN_SESSION"
 )
 
-// ListSessions returns sessions in OS-switcher order: previous first and current last.
+// ListSessions returns sessions in OS-switcher order: current first, followed by
+// previous and older sessions in MRU order.
 func ListSessions() ([]Session, error) {
 	out, err := runner.Output("tmux", "list-sessions", "-F", listFormat)
 	if err != nil {
@@ -39,7 +40,8 @@ func ListSessions() ([]Session, error) {
 		sessions = append(sessions, s)
 	}
 
-	sortSessionsForSwitcher(sessions, currentSessionName())
+	current := currentSessionForSwitcher(sessions, currentSessionName())
+	sortSessionsForSwitcher(sessions, current)
 
 	return sessions, nil
 }
@@ -93,6 +95,29 @@ func currentSessionName() string {
 	return strings.TrimSpace(string(out))
 }
 
+func currentSessionForSwitcher(sessions []Session, reported string) string {
+	for _, session := range sessions {
+		if reported != "" && session.Name == reported {
+			return reported
+		}
+	}
+	return soleAttachedSession(sessions)
+}
+
+func soleAttachedSession(sessions []Session) string {
+	current := ""
+	for _, session := range sessions {
+		if !session.Attached {
+			continue
+		}
+		if current != "" {
+			return ""
+		}
+		current = session.Name
+	}
+	return current
+}
+
 func sortSessionsForSwitcher(sessions []Session, current string) {
 	sort.Slice(sessions, func(i, j int) bool {
 		if !sessions[i].LastAttached.Equal(sessions[j].LastAttached) {
@@ -104,18 +129,19 @@ func sortSessionsForSwitcher(sessions []Session, current string) {
 		return sessions[i].Name < sessions[j].Name
 	})
 
-	if current == "" {
-		return
-	}
+	currentIndex := -1
 	for i := range sessions {
-		if sessions[i].Name != current {
-			continue
+		sessions[i].Current = current != "" && sessions[i].Name == current
+		if sessions[i].Current {
+			currentIndex = i
 		}
-		active := sessions[i]
-		copy(sessions[i:], sessions[i+1:])
-		sessions[len(sessions)-1] = active
+	}
+	if currentIndex <= 0 {
 		return
 	}
+	active := sessions[currentIndex]
+	copy(sessions[1:currentIndex+1], sessions[:currentIndex])
+	sessions[0] = active
 }
 
 // CreateSession creates a new detached tmux session with the given name.

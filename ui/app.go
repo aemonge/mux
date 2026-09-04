@@ -196,8 +196,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				m.focusSession = ""
-			} else {
-				m.restoreIdentity(selected)
+			} else if !m.restoreIdentity(selected) {
+				m.selectInitialSwitcherTarget()
 			}
 		}
 		return m, nil

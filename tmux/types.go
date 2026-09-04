@@ -12,6 +12,7 @@ type Session struct {
 	Created       time.Time
 	LastAttached  time.Time
 	Attached      bool
+	Current       bool // true when this is the invoking client's session
 	Directory     string
 	ActiveCommand string
 	PanePID       int

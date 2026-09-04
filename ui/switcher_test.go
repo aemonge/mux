@@ -9,6 +9,44 @@ import (
 	"github.com/lunemis/mux/tmux"
 )
 
+func TestSwitcherInitialSelectionStartsOnPreviousSession(t *testing.T) {
+	m := NewModel()
+	next, _ := m.Update(sessionsLoadedMsg{sessions: []tmux.Session{
+		{Name: "current", Current: true},
+		{Name: "previous"},
+		{Name: "older"},
+	}})
+	m = next.(Model)
+
+	if got := []string{m.items[0].session.Name, m.items[1].session.Name, m.items[2].session.Name}; got[0] != "current" || got[1] != "previous" || got[2] != "older" {
+		t.Fatalf("display order = %q, want [current previous older]", got)
+	}
+	if item := m.currentItem(); item == nil || item.session.Name != "previous" {
+		t.Fatalf("initial selection = %#v, want previous session", item)
+	}
+}
+
+func TestSwitcherInitialSelectionHandlesSingleAndOutsideTmux(t *testing.T) {
+	tests := []struct {
+		name     string
+		sessions []tmux.Session
+		want     string
+	}{
+		{name: "single current", sessions: []tmux.Session{{Name: "only", Current: true}}, want: "only"},
+		{name: "outside tmux", sessions: []tmux.Session{{Name: "newest"}, {Name: "older"}}, want: "newest"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			m := NewModel()
+			next, _ := m.Update(sessionsLoadedMsg{sessions: test.sessions})
+			m = next.(Model)
+			if item := m.currentItem(); item == nil || item.session.Name != test.want {
+				t.Fatalf("initial selection = %#v, want %q", item, test.want)
+			}
+		})
+	}
+}
+
 func TestSwitcherDrillsThroughHierarchyAndReturnsToParents(t *testing.T) {
 	m := NewModel()
 	m.sessions = []tmux.Session{{Name: "work"}, {Name: "other"}}
