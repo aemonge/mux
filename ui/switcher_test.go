@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/lunemis/mux/tmux"
 )
@@ -116,7 +117,7 @@ func TestSwitcherNavigationStaysWithinCurrentLevel(t *testing.T) {
 	}
 }
 
-func TestSwitcherAttachesSelectedPane(t *testing.T) {
+func TestSwitcherAcceptKeysAttachSelectedPane(t *testing.T) {
 	m := NewModel()
 	m.sessions = []tmux.Session{{Name: "work"}}
 	m.applyFilter()
@@ -127,13 +128,20 @@ func TestSwitcherAttachesSelectedPane(t *testing.T) {
 	next, _ = m.expandCurrent()
 	m = next.(Model)
 
-	next, cmd := m.Update(runeKey("enter"))
-	m = next.(Model)
-	if cmd == nil {
-		t.Fatal("attaching a pane should quit the switcher")
-	}
-	if m.attachTarget != (previewKey{session: "work", window: 1, pane: 2}) {
-		t.Fatalf("attach target = %#v, want exact selected pane", m.attachTarget)
+	for name, key := range map[string]tea.KeyMsg{
+		"enter":     {Type: tea.KeyEnter},
+		"backspace": {Type: tea.KeyBackspace},
+	} {
+		t.Run(name, func(t *testing.T) {
+			next, cmd := m.Update(key)
+			got := next.(Model)
+			if cmd == nil {
+				t.Fatal("attaching a pane should quit the switcher")
+			}
+			if got.attachTarget != (previewKey{session: "work", window: 1, pane: 2}) {
+				t.Fatalf("attach target = %#v, want exact selected pane", got.attachTarget)
+			}
+		})
 	}
 }
 
@@ -149,6 +157,21 @@ func TestSwitcherPreservesChildSelectionAcrossSessionRefresh(t *testing.T) {
 	m = next.(Model)
 	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.session.Name != "work" || item.window.Index != 4 {
 		t.Fatalf("session refresh selected %#v, want original child target", item)
+	}
+}
+
+func TestSwitcherSelectorKeepsTokenUsageOffPreviewCanvas(t *testing.T) {
+	m := NewModel()
+	m.width = 100
+	m.height = 30
+	m.sessions = []tmux.Session{{Name: "work"}}
+	m.applyFilter()
+	m.tokenSession = "work"
+	m.tokenUsage = &tmux.TokenUsage{InputTokens: 1200, OutputTokens: 300, TotalCost: 1.25}
+
+	selector := ansi.Strip(renderSwitcherSelector(&m))
+	if !strings.Contains(selector, "in / ") || !strings.Contains(selector, "~$1.25") {
+		t.Fatalf("selector should retain token usage after preview chrome removal: %q", selector)
 	}
 }
 

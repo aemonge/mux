@@ -10,13 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Built-in `default` and `solarized-gruvbox` color themes, selectable by CLI flag, `MUX_THEME`, or XDG configuration.
 - Configurable, context-aware TUI keybindings with conflict validation and an on-demand `?` help card.
-- Fullscreen live-preview task switcher with a compact centered selector and bottom-left preview framing.
+- Edge-to-edge fullscreen live-preview task switcher with a compact centered selector and bottom-left preview framing.
 - Window movement between sessions, including an explicit warning when moving the final window removes the source session.
 - Hierarchical session, window, and pane selection (#14):
   - `Tab` / `→` / `l` drills into the selected session or window
   - `Shift+Tab` / `←` / `h` returns to the parent level
   - The fullscreen preview follows the highlighted target via `tmux capture-pane -t session:window.pane`
-  - `Enter` on a window or pane attaches and focuses that exact target (`select-window` + `select-pane` before attach)
+  - `Enter` or `Backspace` on a window or pane attaches and focuses that exact target (`select-window` + `select-pane` before attach)
 - `tmux.ListWindows` / `tmux.ListPanes` / `tmux.CapturePaneTarget` helpers
 - MIT License
 - English README with Korean translation (README.ko.md)

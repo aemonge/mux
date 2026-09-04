@@ -214,10 +214,19 @@ func selectorTitle(current *listItem, count int, filter string) string {
 func renderSwitcherSelector(m *Model) string {
 	items, cursor := m.selectorItems()
 	width := switcherWidth(m.width)
-	rows := switcherRows(len(items), m.height)
+	itemRows := switcherRows(len(items), m.height)
 	innerWidth := max(1, width-2)
 
-	lines := make([]string, rows)
+	var tokenLine string
+	if session := m.currentSession(); session != nil && m.tokenSession == session.Name && m.tokenUsage != nil {
+		tokenLine = formatTokenLine(m.tokenUsage, innerWidth)
+	}
+	bodyRows := itemRows
+	if tokenLine != "" && bodyRows < m.height-4 {
+		bodyRows++
+	}
+
+	lines := make([]string, bodyRows)
 	if len(items) == 0 {
 		message := "Loading…"
 		if m.pendingDrill == nil {
@@ -226,16 +235,16 @@ func renderSwitcherSelector(m *Model) string {
 				message = fmt.Sprintf("No match: %q", m.filterText)
 			}
 		}
-		for i := range lines {
+		for i := 0; i < itemRows; i++ {
 			lines[i] = strings.Repeat(" ", innerWidth)
 		}
-		lines[rows/2] = truncateAndCenter(message, innerWidth)
+		lines[itemRows/2] = truncateAndCenter(message, innerWidth)
 	} else {
 		offset := 0
-		if cursor >= rows {
-			offset = cursor - rows + 1
+		if cursor >= itemRows {
+			offset = cursor - itemRows + 1
 		}
-		for i := range lines {
+		for i := 0; i < itemRows; i++ {
 			index := i + offset
 			if index < len(items) {
 				lines[i] = formatItemRow(items[index], index == cursor, innerWidth, &m.tree)
@@ -244,8 +253,11 @@ func renderSwitcherSelector(m *Model) string {
 			}
 		}
 	}
+	if bodyRows > itemRows {
+		lines[bodyRows-1] = tokenLine
+	}
 
-	return drawTitledBorder(selectorTitle(m.currentItem(), len(items), m.filterText), strings.Join(lines, "\n"), width, rows)
+	return drawTitledBorder(selectorTitle(m.currentItem(), len(items), m.filterText), strings.Join(lines, "\n"), width, bodyRows)
 }
 
 func renderSwitcherHelp(keyMap KeyMap, terminalWidth, terminalHeight int) string {

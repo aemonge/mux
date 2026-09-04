@@ -18,7 +18,7 @@ func TestDefaultKeyMapContainsEveryMuxAction(t *testing.T) {
 			"last":         {"G"},
 			"expand":       {"tab", "right", "l"},
 			"collapse":     {"shift+tab", "left", "h"},
-			"attach":       {"enter"},
+			"attach":       {"enter", "backspace"},
 			"help":         {"?"},
 			"create":       {"n"},
 			"kill":         {"x"},
@@ -80,7 +80,7 @@ func TestNewKeyMapAppliesPartialOverridesAndKeepsDefaults(t *testing.T) {
 	assertKeys(t, got, "list", "up", []string{"w"})
 	assertKeys(t, got, "list", "down", []string{"s", "ctrl+n"})
 	assertKeys(t, got, "create", "submit", []string{"ctrl+s"})
-	assertKeys(t, got, "list", "attach", []string{"enter"})
+	assertKeys(t, got, "list", "attach", []string{"enter", "backspace"})
 
 	if !got.Matches("list", "up", "w") {
 		t.Error("custom list.up does not match w")

@@ -36,7 +36,7 @@ var defaultBindings = map[string]map[string][]string{
 		"last":         {"G"},
 		"expand":       {"tab", "right", "l"},
 		"collapse":     {"shift+tab", "left", "h"},
-		"attach":       {"enter"},
+		"attach":       {"enter", "backspace"},
 		"help":         {"?"},
 		"create":       {"n"},
 		"kill":         {"x"},

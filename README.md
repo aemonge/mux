@@ -42,7 +42,7 @@ Press one key to summon mux on top of whatever you're doing — even mid-convers
 ![Popup mode](assets/popup.gif)
 
 ### Vim-style navigation
-`j`/`k` to browse, `/` to filter, `Enter` to attach. No mouse needed.
+`j`/`k` to browse, `/` to filter, `Enter` or `Backspace` to attach. No mouse needed.
 
 ## Quick Start
 
@@ -97,13 +97,13 @@ go install github.com/lunemis/mux/cmd/mux@latest
 
 ### Basic
 
-Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attach, `q` to quit.
+Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` or `Backspace` to attach, and `q` to quit.
 
 ![Screenshot](assets/screenshot.png)
 
-The selected session, window, or pane fills mux as a **live preview**, updated every 500ms. A compact picker floats in the center and shows one hierarchy level at a time. The preview remains anchored at the bottom-left so prompts and status rows stay visible. Press `?` to toggle contextual key help.
+The selected session, window, or pane fills mux edge-to-edge as a **live preview** with no preview border or title, updated every 500ms. A compact picker floats in the center and shows one hierarchy level at a time. The preview remains anchored at the bottom-left so prompts and status rows stay visible. Press `?` to toggle contextual key help.
 
-Sessions behave like an OS window switcher. Inside tmux, the previously used session appears first, remaining sessions follow in MRU order, and the current invoking session moves to the bottom. Pressing `Enter` immediately toggles to the previous session; reopening mux toggles back. Background output does not reorder the list. Outside tmux, the list remains MRU-first. Never-visited sessions fall back to newest creation time, then name.
+Sessions behave like an OS window switcher. Inside tmux, the previously used session appears first, remaining sessions follow in MRU order, and the current invoking session moves to the bottom. Pressing `Enter` or `Backspace` immediately toggles to the previous session; reopening mux toggles back. Background output does not reorder the list. Outside tmux, the list remains MRU-first. Never-visited sessions fall back to newest creation time, then name.
 
 mux-managed popup bindings created before this switcher behavior must be regenerated once so they pass the originating session into the popup. Run the reload command printed by `setup-keybind`:
 
@@ -177,7 +177,7 @@ Every mux action can be rebound in the same XDG `config.json`. Overrides are par
 }
 ```
 
-Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shift+tab`, `up`, `right`, `ctrl+c`, or a literal character. mux rejects unknown contexts/actions, empty bindings, and keys assigned to conflicting actions in the same mode. The contextual help card and prompts show the active bindings.
+Keys use Bubble Tea's case-sensitive names, such as `enter`, `backspace`, `esc`, `tab`, `shift+tab`, `up`, `right`, `ctrl+c`, or a literal character. mux rejects unknown contexts/actions, empty bindings, and keys assigned to conflicting actions in the same mode. The contextual help card and prompts show the active bindings.
 
 | Context | Action | Default keys |
 |---|---|---|
@@ -185,7 +185,7 @@ Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shif
 | `list` | `up` / `down` | `up`, `k` / `down`, `j` |
 | `list` | `first` / `last` | `g` / `G` |
 | `list` | `expand` / `collapse` | `tab`, `right`, `l` / `shift+tab`, `left`, `h` |
-| `list` | `attach` | `enter` |
+| `list` | `attach` | `enter`, `backspace` |
 | `list` | `help` | `?` |
 | `list` | `create` / `rename` / `kill` | `n` / `r` / `x` |
 | `list` | `move_window` | `m` |
@@ -247,7 +247,7 @@ These defaults can be replaced through [custom keybindings](#custom-keybindings)
 | `g` / `G` | Jump to first / last |
 | `Tab` / `→` / `l` | Drill into session → windows → panes |
 | `Shift+Tab` / `←` / `h` | Return to the parent level |
-| `Enter` | Attach (focuses the selected window/pane) |
+| `Enter` / `Backspace` | Attach (focuses the selected window/pane) |
 | `?` | Toggle contextual help |
 | `n` | Create new session |
 | `r` | Rename session |

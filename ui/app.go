@@ -20,7 +20,6 @@ const (
 
 	// Display limits
 	maxSessionNameDisplay = 18
-	maxPathDisplay        = 35
 	filterCharLimit       = 50
 	filterInputWidth      = 30
 )
@@ -591,16 +590,11 @@ func (m Model) previewBackground() string {
 	}
 
 	currentItem := m.currentItem()
-	currentSession := m.currentSession()
 	cachedContent := ""
 	if currentItem != nil && m.previewKey == previewKeyForItem(*currentItem) {
 		cachedContent = m.previewContent
 	}
-	var tokenUsage *tmux.TokenUsage
-	if currentSession != nil && m.tokenSession == currentSession.Name {
-		tokenUsage = m.tokenUsage
-	}
-	return renderPreview(currentItem, cachedContent, m.width, m.height, tokenUsage)
+	return renderPreview(cachedContent, m.width, m.height)
 }
 
 func (m Model) viewMain() string {
