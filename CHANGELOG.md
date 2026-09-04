@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Built-in `default` and `solarized-gruvbox` color themes, selectable by CLI flag, `MUX_THEME`, or XDG configuration.
 - Configurable, context-aware TUI keybindings with conflict validation and an on-demand `?` help card.
-- Edge-to-edge fullscreen live-preview task switcher with a compact centered selector and bottom-left preview framing.
+- Fullscreen live-preview task switcher with a one-row contextual session/window/pane title, compact centered selector, and bottom-left preview framing across every remaining row.
 - Window movement between sessions, including an explicit warning when moving the final window removes the source session.
 - Hierarchical session, window, and pane selection (#14):
   - `Tab` / `→` / `l` drills into the selected session or window

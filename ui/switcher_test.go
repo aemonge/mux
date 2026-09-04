@@ -160,6 +160,30 @@ func TestSwitcherPreservesChildSelectionAcrossSessionRefresh(t *testing.T) {
 	}
 }
 
+func TestContextualPickerTitleTracksHierarchy(t *testing.T) {
+	session := tmux.Session{Name: "work"}
+	window := tmux.Window{Index: 1, Name: "editor"}
+	pane := tmux.Pane{Index: 0, Command: "pi"}
+
+	tests := []struct {
+		name string
+		item *listItem
+		want string
+	}{
+		{name: "empty", want: "tmux session picker"},
+		{name: "session", item: &listItem{kind: itemSession, session: &session}, want: "tmux session picker"},
+		{name: "window", item: &listItem{kind: itemWindow, session: &session, window: &window}, want: "tmux window picker"},
+		{name: "pane", item: &listItem{kind: itemPane, session: &session, window: &window, pane: &pane}, want: "tmux pane picker"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := contextualPickerTitle(test.item); got != test.want {
+				t.Errorf("contextualPickerTitle() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestSwitcherSelectorKeepsTokenUsageOffPreviewCanvas(t *testing.T) {
 	m := NewModel()
 	m.width = 100

@@ -195,6 +195,18 @@ func switcherRows(itemCount, terminalHeight int) int {
 	return max(1, min(rows, terminalHeight-4))
 }
 
+func contextualPickerTitle(current *listItem) string {
+	if current != nil {
+		switch current.kind {
+		case itemWindow:
+			return "tmux window picker"
+		case itemPane:
+			return "tmux pane picker"
+		}
+	}
+	return "tmux session picker"
+}
+
 func selectorTitle(current *listItem, count int, filter string) string {
 	title := fmt.Sprintf("tmux sessions (%d)", count)
 	if current != nil {

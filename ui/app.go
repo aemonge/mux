@@ -594,7 +594,9 @@ func (m Model) previewBackground() string {
 	if currentItem != nil && m.previewKey == previewKeyForItem(*currentItem) {
 		cachedContent = m.previewContent
 	}
-	return renderPreview(cachedContent, m.width, m.height)
+	title := truncateAndCenter(titleStyle.Render(contextualPickerTitle(currentItem)), m.width)
+	preview := renderPreview(cachedContent, m.width, m.height-1)
+	return title + "\n" + preview
 }
 
 func (m Model) viewMain() string {

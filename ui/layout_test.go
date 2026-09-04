@@ -98,8 +98,15 @@ func TestViewMainCompositesSelectorOverFullscreenPreview(t *testing.T) {
 	if strings.Contains(output, "navigate") {
 		t.Error("help should be hidden until requested")
 	}
-	if lines := strings.Count(output, "\n") + 1; lines != m.height {
-		t.Errorf("output lines = %d, want terminal height %d", lines, m.height)
+	lines := strings.Split(output, "\n")
+	if len(lines) != m.height {
+		t.Errorf("output lines = %d, want terminal height %d", len(lines), m.height)
+	}
+	if strings.TrimSpace(lines[0]) != "tmux session picker" {
+		t.Errorf("top row = %q, want centered contextual title", lines[0])
+	}
+	if !strings.Contains(lines[len(lines)-1], "preview-marker") {
+		t.Errorf("bottom row lost bottom-left preview content: %q", lines[len(lines)-1])
 	}
 }
 

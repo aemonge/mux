@@ -101,7 +101,7 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` or `Back
 
 ![Screenshot](assets/screenshot.png)
 
-The selected session, window, or pane fills mux edge-to-edge as a **live preview** with no preview border or title, updated every 500ms. A compact picker floats in the center and shows one hierarchy level at a time. The preview remains anchored at the bottom-left so prompts and status rows stay visible. Press `?` to toggle contextual key help.
+A one-row contextual title (`tmux session picker`, `tmux window picker`, or `tmux pane picker`) sits above the selected target's **live preview**, updated every 500ms. The preview fills every remaining row edge-to-edge with no outer border or separator. A compact picker floats in the center and shows one hierarchy level at a time. The preview remains anchored at the bottom-left so prompts and status rows stay visible. Press `?` to toggle contextual key help.
 
 Sessions behave like an OS window switcher. Inside tmux, the previously used session appears first, remaining sessions follow in MRU order, and the current invoking session moves to the bottom. Pressing `Enter` or `Backspace` immediately toggles to the previous session; reopening mux toggles back. Background output does not reorder the list. Outside tmux, the list remains MRU-first. Never-visited sessions fall back to newest creation time, then name.
 
