@@ -9,7 +9,7 @@ import (
 
 func TestPopupCommandArgsCarryResolvedOriginSession(t *testing.T) {
 	got := strings.Join(popupCommandArgs("/bin/mux", "work", "--theme", "default"), " ")
-	want := "display-popup -E -w 85% -h 80% -e MUX_ORIGIN_SESSION=work /bin/mux --theme default"
+	want := "display-popup -B -E -w 100% -h 100% -e MUX_ORIGIN_SESSION=work /bin/mux --theme default"
 	if got != want {
 		t.Errorf("popup args = %q, want %q", got, want)
 	}
@@ -55,7 +55,7 @@ printf '%s\n' "$@" > "$MUX_TEST_ARGS"
 	}
 	got := strings.Split(strings.TrimSpace(string(data)), "\n")
 	want := []string{
-		"display-popup", "-E", "-w", popupWidth, "-h", popupHeight,
+		"display-popup", "-B", "-E", "-w", popupWidth, "-h", popupHeight,
 		"-e", originSessionEnv + "=work", muxPath, "--theme", "default",
 	}
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {

@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	popupWidth     = "85%"
-	popupHeight    = "80%"
+	popupWidth     = "100%"
+	popupHeight    = "100%"
 	minTmuxVersion = 3.2
 	DefaultBindKey = "m"
 
@@ -58,6 +58,7 @@ func OpenPopup(args ...string) error {
 func popupCommandArgs(muxPath, origin string, args ...string) []string {
 	popupArgs := []string{
 		"display-popup",
+		"-B",
 		"-E",
 		"-w", popupWidth,
 		"-h", popupHeight,

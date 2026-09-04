@@ -1,0 +1,177 @@
+package ui
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+	"github.com/lunemis/mux/tmux"
+)
+
+func TestSwitcherDrillsThroughHierarchyAndReturnsToParents(t *testing.T) {
+	m := NewModel()
+	m.sessions = []tmux.Session{{Name: "work"}, {Name: "other"}}
+	m.applyFilter()
+	m.tree.windowsCache["work"] = []tmux.Window{
+		{Index: 1, Name: "editor", Active: true},
+		{Index: 2, Name: "shell"},
+	}
+
+	next, _ := m.expandCurrent()
+	m = next.(Model)
+	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.window.Index != 1 {
+		t.Fatalf("session drill selected %#v, want first window", item)
+	}
+	items, cursor := m.selectorItems()
+	if len(items) != 2 || cursor != 0 || items[1].kind != itemWindow {
+		t.Fatalf("window selector = %#v cursor=%d, want two sibling windows", items, cursor)
+	}
+
+	m.tree.panesCache[paneCacheKey{session: "work", window: 1}] = []tmux.Pane{
+		{Index: 0, Command: "pi", Active: true},
+		{Index: 1, Command: "shell"},
+	}
+	next, _ = m.expandCurrent()
+	m = next.(Model)
+	if item := m.currentItem(); item == nil || item.kind != itemPane || item.pane.Index != 0 {
+		t.Fatalf("window drill selected %#v, want first pane", item)
+	}
+
+	next, _ = m.collapseCurrent()
+	m = next.(Model)
+	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.window.Index != 1 {
+		t.Fatalf("pane back selected %#v, want parent window", item)
+	}
+	next, _ = m.collapseCurrent()
+	m = next.(Model)
+	if item := m.currentItem(); item == nil || item.kind != itemSession || item.session.Name != "work" {
+		t.Fatalf("window back selected %#v, want parent session", item)
+	}
+}
+
+func TestSwitcherCompletesAsynchronousDrill(t *testing.T) {
+	m := NewModel()
+	m.sessions = []tmux.Session{{Name: "work"}}
+	m.applyFilter()
+
+	next, cmd := m.expandCurrent()
+	m = next.(Model)
+	if cmd == nil || m.pendingDrill == nil {
+		t.Fatal("uncached session drill should load windows and remember pending focus")
+	}
+
+	next, _ = m.Update(windowsLoadedMsg{
+		sessionName: "work",
+		windows:     []tmux.Window{{Index: 3, Name: "editor"}},
+	})
+	m = next.(Model)
+	if m.pendingDrill != nil {
+		t.Fatal("completed window load should clear pending drill")
+	}
+	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.window.Index != 3 {
+		t.Fatalf("loaded drill selected %#v, want returned window", item)
+	}
+}
+
+func TestSwitcherNavigationCancelsStaleAsynchronousDrill(t *testing.T) {
+	m := NewModel()
+	m.sessions = []tmux.Session{{Name: "work"}, {Name: "other"}}
+	m.applyFilter()
+
+	next, _ := m.expandCurrent()
+	m = next.(Model)
+	m = updateModel(t, m, runeKey("j"))
+	if m.pendingDrill != nil {
+		t.Fatal("moving to another session should cancel pending drill focus")
+	}
+
+	next, _ = m.Update(windowsLoadedMsg{
+		sessionName: "work",
+		windows:     []tmux.Window{{Index: 3, Name: "editor"}},
+	})
+	m = next.(Model)
+	if item := m.currentItem(); item == nil || item.kind != itemSession || item.session.Name != "other" {
+		t.Fatalf("stale window response stole focus: %#v", item)
+	}
+}
+
+func TestSwitcherNavigationStaysWithinCurrentLevel(t *testing.T) {
+	m := NewModel()
+	m.sessions = []tmux.Session{{Name: "work"}, {Name: "other"}}
+	m.applyFilter()
+	m.tree.windowsCache["work"] = []tmux.Window{
+		{Index: 1, Name: "editor"},
+		{Index: 2, Name: "shell"},
+	}
+	next, _ := m.expandCurrent()
+	m = next.(Model)
+
+	m = updateModel(t, m, runeKey("j"))
+	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.window.Index != 2 {
+		t.Fatalf("down selected %#v, want sibling window", item)
+	}
+	m = updateModel(t, m, runeKey("j"))
+	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.window.Index != 2 {
+		t.Fatalf("down crossed hierarchy boundary: %#v", item)
+	}
+}
+
+func TestSwitcherAttachesSelectedPane(t *testing.T) {
+	m := NewModel()
+	m.sessions = []tmux.Session{{Name: "work"}}
+	m.applyFilter()
+	m.tree.windowsCache["work"] = []tmux.Window{{Index: 1, Name: "editor"}}
+	next, _ := m.expandCurrent()
+	m = next.(Model)
+	m.tree.panesCache[paneCacheKey{session: "work", window: 1}] = []tmux.Pane{{Index: 2, Command: "pi"}}
+	next, _ = m.expandCurrent()
+	m = next.(Model)
+
+	next, cmd := m.Update(runeKey("enter"))
+	m = next.(Model)
+	if cmd == nil {
+		t.Fatal("attaching a pane should quit the switcher")
+	}
+	if m.attachTarget != (previewKey{session: "work", window: 1, pane: 2}) {
+		t.Fatalf("attach target = %#v, want exact selected pane", m.attachTarget)
+	}
+}
+
+func TestSwitcherPreservesChildSelectionAcrossSessionRefresh(t *testing.T) {
+	m := NewModel()
+	m.sessions = []tmux.Session{{Name: "work"}, {Name: "other"}}
+	m.applyFilter()
+	m.tree.windowsCache["work"] = []tmux.Window{{Index: 4, Name: "editor"}}
+	next, _ := m.expandCurrent()
+	m = next.(Model)
+
+	next, _ = m.Update(sessionsLoadedMsg{sessions: []tmux.Session{{Name: "other"}, {Name: "work"}}})
+	m = next.(Model)
+	if item := m.currentItem(); item == nil || item.kind != itemWindow || item.session.Name != "work" || item.window.Index != 4 {
+		t.Fatalf("session refresh selected %#v, want original child target", item)
+	}
+}
+
+func TestSwitcherSelectorTitleTracksHierarchy(t *testing.T) {
+	m := NewModel()
+	m.width = 100
+	m.height = 30
+	m.sessions = []tmux.Session{{Name: "work"}}
+	m.applyFilter()
+	m.tree.windowsCache["work"] = []tmux.Window{{Index: 1, Name: "editor"}}
+	next, _ := m.expandCurrent()
+	m = next.(Model)
+
+	windowSelector := ansi.Strip(renderSwitcherSelector(&m))
+	if !strings.Contains(windowSelector, "work › windows") {
+		t.Fatalf("window selector title missing context: %q", windowSelector)
+	}
+
+	m.tree.panesCache[paneCacheKey{session: "work", window: 1}] = []tmux.Pane{{Index: 0, Command: "pi"}}
+	next, _ = m.expandCurrent()
+	m = next.(Model)
+	paneSelector := ansi.Strip(renderSwitcherSelector(&m))
+	if !strings.Contains(paneSelector, "work › editor › panes") {
+		t.Fatalf("pane selector title missing context: %q", paneSelector)
+	}
+}

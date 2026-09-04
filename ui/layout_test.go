@@ -28,53 +28,59 @@ func TestLayoutDimensions(t *testing.T) {
 				m.height = h
 				m.sessions = sessions
 				m.filtered = sessions
-				m.cursor = 0
+				m.rebuildItems()
 
 				output := m.viewMain()
 				lines := strings.Split(output, "\n")
-
-				t.Logf("w=%d h=%d => output lines=%d", w, h, len(lines))
-
 				if len(lines) > h {
 					t.Errorf("w=%d h=%d: output has %d lines, exceeds terminal height %d", w, h, len(lines), h)
-					// Print first and last few lines for debugging
-					for i, l := range lines {
-						if i < 3 || i >= len(lines)-3 {
-							t.Logf("  line %d (len=%d): %q", i, len(l), truncStr(l, 80))
-						}
-					}
 				}
 			})
 		}
 	}
 }
 
-func TestStackedLayoutHeights(t *testing.T) {
-	tests := []struct {
-		height                         int
-		preview, separator, list, help int
-	}{
-		{height: 20, preview: 9, separator: 1, list: 8, help: 2},
-		{height: 30, preview: 14, separator: 1, list: 13, help: 2},
-		{height: 12, preview: 5, separator: 1, list: 4, help: 2},
-	}
+func TestOverlayCenteredPreservesFullscreenCanvas(t *testing.T) {
+	const width, height = 20, 7
+	backgroundLine := strings.Repeat("b", width)
+	background := strings.Repeat(backgroundLine+"\n", height-1) + backgroundLine
+	foreground := "╭────╮\n│pick│\n╰────╯"
 
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("height_%d", tt.height), func(t *testing.T) {
-			got := calculateStackedHeights(tt.height)
-			if got.preview != tt.preview || got.separator != tt.separator ||
-				got.list != tt.list || got.help != tt.help {
-				t.Errorf("calculateStackedHeights(%d) = %#v, want preview=%d separator=%d list=%d help=%d",
-					tt.height, got, tt.preview, tt.separator, tt.list, tt.help)
-			}
-			if got.preview+got.separator+got.list+got.help != tt.height {
-				t.Errorf("allocated height = %d, want %d", got.preview+got.separator+got.list+got.help, tt.height)
-			}
-		})
+	output := ansi.Strip(overlayCentered(background, foreground, width, height))
+	lines := strings.Split(output, "\n")
+	if len(lines) != height {
+		t.Fatalf("overlay lines = %d, want %d", len(lines), height)
+	}
+	for i, line := range lines {
+		if got := ansi.StringWidth(line); got != width {
+			t.Errorf("line %d width = %d, want %d", i, got, width)
+		}
+	}
+	if !strings.Contains(output, "│pick│") {
+		t.Error("centered foreground is missing")
+	}
+	if lines[0] != backgroundLine || lines[height-1] != backgroundLine {
+		t.Error("background outside the centered overlay was not preserved")
 	}
 }
 
-func TestViewMainStacksPreviewBeforeSelectionAndHelp(t *testing.T) {
+func TestOverlayCenteredHandlesANSIAndWideCharacters(t *testing.T) {
+	const width, height = 18, 5
+	background := "界界界界界界界界界\n" + strings.Repeat("x\n", height-2) + strings.Repeat("y", width)
+	foreground := titleStyle.Render("╭─ ✦ ─╮\n│ mux │\n╰─────╯")
+
+	output := overlayCentered(background, foreground, width, height)
+	for i, line := range strings.Split(output, "\n") {
+		if got := ansi.StringWidth(line); got != width {
+			t.Errorf("line %d width = %d, want %d", i, got, width)
+		}
+	}
+	if !strings.Contains(ansi.Strip(output), "mux") {
+		t.Error("styled overlay content is missing")
+	}
+}
+
+func TestViewMainCompositesSelectorOverFullscreenPreview(t *testing.T) {
 	m := NewModel()
 	m.width = 100
 	m.height = 20
@@ -86,46 +92,53 @@ func TestViewMainStacksPreviewBeforeSelectionAndHelp(t *testing.T) {
 	m.previewContent = "preview-marker"
 
 	output := ansi.Strip(m.viewMain())
-	previewAt := strings.Index(output, "preview-marker")
-	selectionAt := strings.Index(output, "tmux sessions")
-	helpAt := strings.Index(output, "navigate")
-	if previewAt < 0 || selectionAt < 0 || helpAt < 0 {
-		t.Fatalf("missing layout markers: preview=%d selection=%d help=%d", previewAt, selectionAt, helpAt)
+	if !strings.Contains(output, "preview-marker") || !strings.Contains(output, "tmux sessions") {
+		t.Fatal("fullscreen view should contain both preview and selector")
 	}
-	if previewAt >= selectionAt || selectionAt >= helpAt {
-		t.Errorf("layout order preview/selection/help = %d/%d/%d", previewAt, selectionAt, helpAt)
+	if strings.Contains(output, "navigate") {
+		t.Error("help should be hidden until requested")
 	}
-	if lines := strings.Count(output, "\n") + 1; lines > m.height {
-		t.Errorf("output lines = %d, exceeds terminal height %d", lines, m.height)
-	}
-}
-
-func TestStackedLayoutFitsExtraSelectionBar(t *testing.T) {
-	m := NewModel()
-	m.width = 80
-	m.height = minimumStackedHeight
-	m.mode = modeFilter
-	m.filterMod = newFilterModel("needle")
-
-	output := m.viewMain()
 	if lines := strings.Count(output, "\n") + 1; lines != m.height {
 		t.Errorf("output lines = %d, want terminal height %d", lines, m.height)
 	}
 }
 
-func TestRenderSeparatorFillsTerminalWidth(t *testing.T) {
-	const width = 80
-	got := ansi.Strip(renderSeparator(width))
-	if ansi.StringWidth(got) != width {
-		t.Errorf("separator width = %d, want %d", ansi.StringWidth(got), width)
+func TestHelpCardReplacesSelectorButPreservesPreview(t *testing.T) {
+	m := NewModel()
+	m.width = 100
+	m.height = 20
+	m.sessions = []tmux.Session{{Name: "work", Directory: "/tmp/project"}}
+	m.applyFilter()
+	m.previewKey = previewKeyForItem(*m.currentItem())
+	m.previewContent = "preview-marker"
+	m.helpVisible = true
+
+	output := ansi.Strip(m.viewMain())
+	if !strings.Contains(output, "preview-marker") || !strings.Contains(output, "navigate") {
+		t.Fatal("help view should preserve the preview and show contextual commands")
 	}
-	if got != strings.Repeat("━", width) {
-		t.Errorf("separator = %q, want heavy horizontal line", got)
+	if strings.Contains(output, "tmux sessions (1)") {
+		t.Error("help card should replace rather than stack on the selector")
+	}
+}
+
+func TestModalCompositesOverFullscreenPreview(t *testing.T) {
+	m := NewModel()
+	m.width = 80
+	m.height = minimumSwitcherHeight
+	m.mode = modeFilter
+	m.filterMod = newFilterModel("needle")
+
+	output := ansi.Strip(m.View())
+	if !strings.Contains(output, "needle") {
+		t.Error("filter modal should be visible over the preview")
+	}
+	if lines := strings.Count(output, "\n") + 1; lines != m.height {
+		t.Errorf("output lines = %d, want terminal height %d", lines, m.height)
 	}
 }
 
 func TestSessionListScrolling(t *testing.T) {
-	// Create more sessions than can fit in a small viewport
 	sessions := make([]tmux.Session, 20)
 	for i := range sessions {
 		sessions[i] = tmux.Session{
@@ -136,34 +149,23 @@ func TestSessionListScrolling(t *testing.T) {
 	}
 
 	width := 60
-	height := 10 // innerHeight = 8, so only 8 sessions visible
+	height := 10
 
-	// Cursor at 0: first session should be visible
 	out := renderSessionList(sessions, 0, "", width, height)
 	if !strings.Contains(out, "session-00") {
 		t.Error("cursor=0: expected session-00 to be visible")
 	}
 
-	// Cursor at 15: should scroll so session-15 is visible
 	out = renderSessionList(sessions, 15, "", width, height)
 	if !strings.Contains(out, "session-15") {
 		t.Error("cursor=15: expected session-15 to be visible")
 	}
-	// session-00 should be scrolled out
 	if strings.Contains(out, "session-00") {
 		t.Error("cursor=15: expected session-00 to be scrolled out")
 	}
 
-	// Cursor at last session
 	out = renderSessionList(sessions, 19, "", width, height)
 	if !strings.Contains(out, "session-19") {
 		t.Error("cursor=19: expected session-19 to be visible")
 	}
-}
-
-func truncStr(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

@@ -45,6 +45,8 @@ type Model struct {
 	tree           treeState
 	cursor         int
 	mode           mode
+	helpVisible    bool
+	pendingDrill   *pendingDrill
 	width          int
 	height         int
 	err            error
@@ -183,6 +185,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionsLoadedMsg:
 		m.err = msg.err
 		if msg.sessions != nil {
+			selected := m.currentIdentity()
 			m.sessions = msg.sessions
 			m.tree.pruneCaches(m.sessions)
 			m.applyFilter()
@@ -194,18 +197,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				m.focusSession = ""
+			} else {
+				m.restoreIdentity(selected)
 			}
 		}
 		return m, nil
 
 	case windowsLoadedMsg:
+		selected := m.currentIdentity()
 		m.tree.windowsCache[msg.sessionName] = msg.windows
 		m.rebuildItems()
+		m.restoreIdentity(selected)
+		if m.finishPendingDrill(itemWindow, msg.sessionName, 0) {
+			return m, m.refreshCurrentPreview()
+		}
 		return m, nil
 
 	case panesLoadedMsg:
+		selected := m.currentIdentity()
 		m.tree.panesCache[paneCacheKey{session: msg.sessionName, window: msg.windowIndex}] = msg.panes
 		m.rebuildItems()
+		m.restoreIdentity(selected)
+		if m.finishPendingDrill(itemPane, msg.sessionName, msg.windowIndex) {
+			return m, m.refreshCurrentPreview()
+		}
 		return m, nil
 
 	case previewLoadedMsg:
@@ -294,25 +309,32 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	pressed := key.String()
 
+	if m.helpVisible {
+		if pressed == "esc" || m.keyMap.Matches(contextList, "help", pressed) {
+			m.helpVisible = false
+		}
+		return m, nil
+	}
+
 	switch {
 	case m.keyMap.Matches(contextList, "quit", pressed):
 		return m, tea.Quit
+	case m.keyMap.Matches(contextList, "help", pressed):
+		m.helpVisible = true
 	case m.keyMap.Matches(contextList, "up", pressed):
-		if m.cursor > 0 {
-			m.cursor--
+		if m.moveSibling(-1) {
 			return m, m.refreshCurrentPreview()
 		}
 	case m.keyMap.Matches(contextList, "down", pressed):
-		if m.cursor < len(m.items)-1 {
-			m.cursor++
+		if m.moveSibling(1) {
 			return m, m.refreshCurrentPreview()
 		}
 	case m.keyMap.Matches(contextList, "first", pressed):
-		m.cursor = 0
-		return m, m.refreshCurrentPreview()
+		if m.selectSiblingBoundary(false) {
+			return m, m.refreshCurrentPreview()
+		}
 	case m.keyMap.Matches(contextList, "last", pressed):
-		if len(m.items) > 0 {
-			m.cursor = len(m.items) - 1
+		if m.selectSiblingBoundary(true) {
 			return m, m.refreshCurrentPreview()
 		}
 	case m.keyMap.Matches(contextList, "expand", pressed):
@@ -345,6 +367,7 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.renameModel.input.Focus()
 		}
 	case m.keyMap.Matches(contextList, "filter", pressed):
+		m.returnToSessionLevel()
 		m.mode = modeFilter
 		m.filterMod = newFilterModel(m.filterText)
 		return m, nil
@@ -357,8 +380,8 @@ func (m Model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// expandCurrent expands the row under the cursor and dispatches the loader.
-// On a pane (leaf) it does nothing.
+// expandCurrent drills into the selected session or window. Cached children
+// are selected immediately; otherwise focus moves when the async load returns.
 func (m Model) expandCurrent() (tea.Model, tea.Cmd) {
 	it := m.currentItem()
 	if it == nil || !it.canExpand() {
@@ -366,53 +389,52 @@ func (m Model) expandCurrent() (tea.Model, tea.Cmd) {
 	}
 	switch it.kind {
 	case itemSession:
-		if m.tree.isSessionExpanded(it.session.Name) {
-			return m, nil
-		}
-		m.tree.setSessionExpanded(it.session.Name, true)
+		name := it.session.Name
+		m.tree.setSessionExpanded(name, true)
 		m.rebuildItems()
-		return m, loadWindows(it.session.Name)
+		if m.selectFirstChild(itemWindow, name, 0) {
+			return m, m.refreshCurrentPreview()
+		}
+		m.pendingDrill = &pendingDrill{childKind: itemWindow, session: name}
+		return m, loadWindows(name)
 	case itemWindow:
-		if m.tree.isWindowExpanded(it.session.Name, it.window.Index) {
-			return m, nil
-		}
-		m.tree.setWindowExpanded(it.session.Name, it.window.Index, true)
+		name, index := it.session.Name, it.window.Index
+		m.tree.setWindowExpanded(name, index, true)
 		m.rebuildItems()
-		return m, loadPanes(it.session.Name, it.window.Index)
+		if m.selectFirstChild(itemPane, name, index) {
+			return m, m.refreshCurrentPreview()
+		}
+		m.pendingDrill = &pendingDrill{childKind: itemPane, session: name, windowIndex: index}
+		return m, loadPanes(name, index)
 	}
 	return m, nil
 }
 
-// collapseCurrent collapses the row under the cursor. On a child row whose own
-// kind cannot collapse further, it walks up to the parent and collapses that.
+// collapseCurrent returns from panes to their window or from windows to their
+// session. At session level it only cancels an in-flight drill.
 func (m Model) collapseCurrent() (tea.Model, tea.Cmd) {
 	it := m.currentItem()
 	if it == nil {
 		return m, nil
 	}
+	m.pendingDrill = nil
 	switch it.kind {
 	case itemSession:
-		if !m.tree.isSessionExpanded(it.session.Name) {
-			return m, nil
-		}
 		m.tree.setSessionExpanded(it.session.Name, false)
 	case itemWindow:
-		if m.tree.isWindowExpanded(it.session.Name, it.window.Index) {
-			m.tree.setWindowExpanded(it.session.Name, it.window.Index, false)
-		} else {
-			// Already-collapsed window: jump up to the parent session
-			m.cursor = m.findItemIndex(itemSession, it.session.Name, 0, 0)
-			m.tree.setSessionExpanded(it.session.Name, false)
-		}
+		name := it.session.Name
+		m.tree.setSessionExpanded(name, false)
+		m.rebuildItems()
+		m.cursor = m.findItemIndex(itemSession, name, 0, 0)
+		return m, m.refreshCurrentPreview()
 	case itemPane:
-		// Collapse the parent window and move cursor up to it
-		m.cursor = m.findItemIndex(itemWindow, it.session.Name, it.window.Index, 0)
-		m.tree.setWindowExpanded(it.session.Name, it.window.Index, false)
+		name, index := it.session.Name, it.window.Index
+		m.tree.setWindowExpanded(name, index, false)
+		m.rebuildItems()
+		m.cursor = m.findItemIndex(itemWindow, name, index, 0)
+		return m, m.refreshCurrentPreview()
 	}
 	m.rebuildItems()
-	if m.cursor >= len(m.items) {
-		m.cursor = max(0, len(m.items)-1)
-	}
 	return m, m.refreshCurrentPreview()
 }
 
@@ -548,6 +570,10 @@ func (m Model) View() string {
 		view = m.viewWithOverlay(m.createModel.View(m.keyMap))
 	case modeRename:
 		view = m.viewWithOverlay(m.renameModel.View(m.keyMap))
+	case modeFilter:
+		view = m.viewWithOverlay(m.filterMod.View(m.keyMap))
+	case modeConfirmKill:
+		view = m.viewWithOverlay(m.confirmKillMod.View(m.keyMap))
 	case modeMoveWindow:
 		view = m.viewWithOverlay(m.moveWindowMod.View(m.keyMap))
 	default:
@@ -559,12 +585,10 @@ func (m Model) View() string {
 	return view
 }
 
-func (m Model) viewMain() string {
-	if m.height < minimumStackedHeight || m.width < 20 {
+func (m Model) previewBackground() string {
+	if m.height < minimumSwitcherHeight || m.width < 20 {
 		return fixedBox(errorStyle.Render("Terminal too small for mux"), m.width, m.height)
 	}
-
-	heights := calculateStackedHeights(m.height)
 
 	currentItem := m.currentItem()
 	currentSession := m.currentSession()
@@ -576,89 +600,27 @@ func (m Model) viewMain() string {
 	if currentSession != nil && m.tokenSession == currentSession.Name {
 		tokenUsage = m.tokenUsage
 	}
-	preview := renderPreview(currentItem, cachedContent, m.width, heights.preview, tokenUsage)
-
-	var extraBar string
-	if m.mode == modeFilter {
-		extraBar = m.filterMod.View(m.keyMap)
-	} else if m.mode == modeConfirmKill {
-		extraBar = m.confirmKillMod.View(m.keyMap)
-	} else if m.filterText != "" {
-		extraBar = helpStyle.Render(fmt.Sprintf("filter: %s (%s clear)",
-			m.filterText, m.keyMap.Help(contextList, "clear_filter")))
-	}
-
-	count := fmt.Sprintf("(%d)", len(m.filtered))
-	title := titleStyle.Render("⚡ tmux sessions " + count)
-	selectionChrome := 1
-	if extraBar != "" {
-		selectionChrome++
-	}
-	listHeight := max(2, heights.list-selectionChrome)
-	list := renderListView(m.items, m.cursor, m.filterText, &m.tree, m.width, listHeight)
-
-	var selection strings.Builder
-	selection.WriteString(title)
-	selection.WriteByte('\n')
-	if extraBar != "" {
-		selection.WriteString(extraBar)
-		selection.WriteByte('\n')
-	}
-	selection.WriteString(list)
-
-	return strings.Join([]string{
-		preview,
-		renderSeparator(m.width),
-		selection.String(),
-		renderHelp(m.keyMap, m.width),
-	}, "\n")
+	return renderPreview(currentItem, cachedContent, m.width, m.height, tokenUsage)
 }
 
-func (m Model) viewWithOverlay(overlay string) string {
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colorPrimary).
-		Padding(1, 2).
-		Render(overlay)
-
-	return lipgloss.Place(m.width, m.height,
-		lipgloss.Center, lipgloss.Center,
-		box)
+func (m Model) viewMain() string {
+	background := m.previewBackground()
+	if m.height < minimumSwitcherHeight || m.width < 20 {
+		return background
+	}
+	overlay := renderSwitcherSelector(&m)
+	if m.helpVisible {
+		overlay = renderSwitcherHelp(m.keyMap, m.width, m.height)
+	}
+	return overlayCentered(background, overlay, m.width, m.height)
 }
 
-func renderHelp(keyMap KeyMap, width int) string {
-	type helpItem struct{ key, desc string }
-	rows := [][]helpItem{
-		{
-			{keyMap.Help(contextList, "up") + "/" + keyMap.Help(contextList, "down"), "navigate"},
-			{keyMap.Help(contextList, "first"), "first"},
-			{keyMap.Help(contextList, "last"), "last"},
-			{keyMap.Help(contextList, "expand"), "expand"},
-			{keyMap.Help(contextList, "collapse"), "collapse"},
-			{keyMap.Help(contextList, "attach"), "attach"},
-		},
-		{
-			{keyMap.Help(contextList, "create"), "new"},
-			{keyMap.Help(contextList, "kill"), "kill"},
-			{keyMap.Help(contextList, "move_window"), "move"},
-			{keyMap.Help(contextList, "rename"), "rename"},
-			{keyMap.Help(contextList, "filter"), "filter"},
-			{keyMap.Help(contextList, "clear_filter"), "clear"},
-			{keyMap.Help(contextList, "quit") + "/" + keyMap.Help(contextGlobal, "quit"), "quit"},
-		},
+func (m Model) viewWithOverlay(content string) string {
+	background := m.previewBackground()
+	if m.height < minimumSwitcherHeight || m.width < 20 {
+		return background
 	}
-
-	rendered := make([]string, 0, len(rows))
-	for _, row := range rows {
-		parts := make([]string, 0, len(row))
-		for _, item := range row {
-			parts = append(parts,
-				helpKeyStyle.Render(item.key)+" "+helpStyle.Render(item.desc))
-		}
-		rendered = append(rendered, truncateAndCenter(
-			strings.Join(parts, helpStyle.Render("  •  ")), width))
-	}
-	return strings.Join(rendered, "\n")
+	return overlayCentered(background, renderModal(content), m.width, m.height)
 }
 
 // AttachName returns the session name to attach to (if any) after the TUI

@@ -149,24 +149,40 @@ func TestConfiguredGlobalQuitWorksFromModalMode(t *testing.T) {
 	}
 }
 
+func TestConfiguredHelpBindingTogglesHelp(t *testing.T) {
+	keyMap := mustKeyMap(t, map[string]map[string][]string{
+		"list": {"help": {"z"}},
+	})
+	m := NewModelWithKeyMap(keyMap)
+
+	m = updateModel(t, m, runeKey("?"))
+	if m.helpVisible {
+		t.Fatal("replaced default help key should not open help")
+	}
+	m = updateModel(t, m, runeKey("z"))
+	if !m.helpVisible {
+		t.Fatal("custom help key should open help")
+	}
+	m = updateModel(t, m, runeKey("z"))
+	if m.helpVisible {
+		t.Fatal("custom help key should close help")
+	}
+}
+
 func TestRenderedHelpAndPromptsUseConfiguredBindings(t *testing.T) {
 	keyMap := mustKeyMap(t, map[string]map[string][]string{
-		"list":   {"up": {"w"}, "down": {"s"}, "create": {"c"}},
+		"list":   {"up": {"w"}, "down": {"s"}, "create": {"c"}, "help": {"u"}},
 		"create": {"switch_field": {"ctrl+n"}, "submit": {"ctrl+s"}, "cancel": {"ctrl+x"}},
 		"rename": {"submit": {"ctrl+s"}, "cancel": {"ctrl+x"}},
 		"filter": {"apply": {"ctrl+s"}, "clear": {"ctrl+x"}},
 		"kill":   {"confirm": {"enter"}, "cancel": {"esc"}},
 	})
 
-	help := renderHelp(keyMap, 120)
-	assertContainsAll(t, help, "w/s", "navigate", "c", "new", "m", "move")
-	if lines := strings.Split(help, "\n"); len(lines) != 2 {
-		t.Fatalf("help lines = %d, want exactly 2", len(lines))
-	} else {
-		for i, line := range lines {
-			if width := ansi.StringWidth(line); width != 120 {
-				t.Errorf("help line %d width = %d, want 120", i, width)
-			}
+	help := renderSwitcherHelp(keyMap, 120, 30)
+	assertContainsAll(t, help, "w / s", "navigate", "c", "new / rename / kill", "m", "move", "u / esc")
+	for i, line := range strings.Split(help, "\n") {
+		if width := ansi.StringWidth(line); width != switcherWidth(120) {
+			t.Errorf("help line %d width = %d, want %d", i, width, switcherWidth(120))
 		}
 	}
 	assertContainsAll(t, newCreateModel().View(keyMap), "ctrl+n", "ctrl+s", "ctrl+x")
@@ -175,17 +191,15 @@ func TestRenderedHelpAndPromptsUseConfiguredBindings(t *testing.T) {
 	assertContainsAll(t, newConfirmKillModel("old").View(keyMap), "enter", "esc")
 }
 
-func TestRenderHelpCentersEachRow(t *testing.T) {
-	const width = 160
-	rows := strings.Split(ansi.Strip(renderHelp(DefaultKeyMap(), width)), "\n")
-	if len(rows) != 2 {
-		t.Fatalf("help rows = %d, want 2", len(rows))
+func TestRenderSwitcherHelpIsACompactCard(t *testing.T) {
+	const width, height = 160, 30
+	rows := strings.Split(ansi.Strip(renderSwitcherHelp(DefaultKeyMap(), width, height)), "\n")
+	if len(rows) != 11 {
+		t.Fatalf("help rows = %d, want 9 entries plus borders", len(rows))
 	}
 	for i, row := range rows {
-		left := len(row) - len(strings.TrimLeft(row, " "))
-		right := len(row) - len(strings.TrimRight(row, " "))
-		if difference := left - right; difference < -1 || difference > 1 {
-			t.Errorf("help row %d padding left/right = %d/%d, want centered", i, left, right)
+		if got := ansi.StringWidth(row); got != switcherWidth(width) {
+			t.Errorf("help row %d width = %d, want %d", i, got, switcherWidth(width))
 		}
 	}
 }

@@ -9,14 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Built-in `default` and `solarized-gruvbox` color themes, selectable by CLI flag, `MUX_THEME`, or XDG configuration.
-- Configurable, context-aware TUI keybindings with conflict validation and active-key help text.
-- Stacked preview and full-width session tree layout with a themed separator and centered help rows.
+- Configurable, context-aware TUI keybindings with conflict validation and an on-demand `?` help card.
+- Fullscreen live-preview task switcher with a compact centered selector and bottom-left preview framing.
 - Window movement between sessions, including an explicit warning when moving the final window removes the source session.
-- Multi-window/pane tree expansion in the session list (#14):
-  - `Tab` / `→` / `l` to expand a session into its windows, then a window into its panes
-  - `Shift+Tab` / `←` / `h` to collapse one level
-  - Preview panel now follows the cursor — captures the targeted window or pane via `tmux capture-pane -t session:window.pane`
-  - `Enter` on a window/pane row attaches and focuses that exact pane (`select-window` + `select-pane` before attach)
+- Hierarchical session, window, and pane selection (#14):
+  - `Tab` / `→` / `l` drills into the selected session or window
+  - `Shift+Tab` / `←` / `h` returns to the parent level
+  - The fullscreen preview follows the highlighted target via `tmux capture-pane -t session:window.pane`
+  - `Enter` on a window or pane attaches and focuses that exact target (`select-window` + `select-pane` before attach)
 - `tmux.ListWindows` / `tmux.ListPanes` / `tmux.CapturePaneTarget` helpers
 - MIT License
 - English README with Korean translation (README.ko.md)
@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Session ordering now behaves like an OS switcher: previous session first, remaining sessions in MRU order, and the invoking session last; background output no longer changes recency.
-- Popup launch and generated keybindings now preserve the invoking tmux session for switcher ordering.
+- Popup launch now uses a borderless `100% × 100%` canvas and generated keybindings preserve the invoking tmux session for switcher ordering.
 - `Session.Windows` (int) split into `Session.WindowCount` (int) + `Session.Windows` ([]Window) — the latter is lazily populated on demand
 - `AttachToSession(name)` signature extended to `AttachToSession(name, windowIdx, paneIdx)` — pass `-1` to keep tmux defaults
 - Cross-platform `shortenPath` using `os.UserHomeDir()` instead of hardcoded `/Users/`

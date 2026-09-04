@@ -24,8 +24,8 @@ tmux's built-in `choose-session` shows you a list of names — but which session
 
 ## How mux solves it
 
-### Live preview — every window and pane
-See the actual terminal output of any session *before* you switch. Press `Tab` to expand a session into its windows, expand again to peek into individual panes — preview each one without attaching.
+### Fullscreen live preview — every window and pane
+See the selected target's terminal output across the full mux canvas before you switch. A compact picker floats in the center while the preview follows your selection. Press `l`, `Right`, or `Tab` to drill from sessions into windows and panes; use `h`, `Left`, or `Shift+Tab` to return.
 
 ### AI CLI detection
 `claude`, `codex`, `aider`, `gemini` are automatically detected and highlighted with badges — instantly find the right session.
@@ -101,7 +101,7 @@ Run `mux` to open the session manager. Use `j`/`k` to navigate, `Enter` to attac
 
 ![Screenshot](assets/screenshot.png)
 
-The upper half shows a **live preview** of the selected session's terminal output, updated every 500ms. A themed separator divides it from the full-width session tree below, followed by two centered rows of active key help.
+The selected session, window, or pane fills mux as a **live preview**, updated every 500ms. A compact picker floats in the center and shows one hierarchy level at a time. The preview remains anchored at the bottom-left so prompts and status rows stay visible. Press `?` to toggle contextual key help.
 
 Sessions behave like an OS window switcher. Inside tmux, the previously used session appears first, remaining sessions follow in MRU order, and the current invoking session moves to the bottom. Pressing `Enter` immediately toggles to the previous session; reopening mux toggles back. Background output does not reorder the list. Outside tmux, the list remains MRU-first. Never-visited sessions fall back to newest creation time, then name.
 
@@ -151,7 +151,7 @@ mux
 
 Theme precedence is `--theme`, then `MUX_THEME`, then the XDG config, then `default`.
 
-Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. The horizontal preview separator uses `colors.separator` (`#2563EB` blue in the default theme) independently from panel `colors.border`. Theme files are embedded into the binary at build time.
+Theme palettes live in [`theme/*.json`](theme/). To add a built-in theme, copy an existing file, give it a unique `name`, update its semantic UI and AI-tool colors, then rebuild mux. Set `colors.background` to `"NONE"` to preserve your terminal's background. The switcher selector's titled top edge uses `colors.separator` (`#2563EB` blue in the default theme) independently from its remaining `colors.border` edges. Theme files are embedded into the binary at build time.
 
 ### Custom keybindings
 
@@ -177,7 +177,7 @@ Every mux action can be rebound in the same XDG `config.json`. Overrides are par
 }
 ```
 
-Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shift+tab`, `up`, `right`, `ctrl+c`, or a literal character. mux rejects unknown contexts/actions, empty bindings, and keys assigned to conflicting actions in the same mode. Help bars and prompts show the active bindings.
+Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shift+tab`, `up`, `right`, `ctrl+c`, or a literal character. mux rejects unknown contexts/actions, empty bindings, and keys assigned to conflicting actions in the same mode. The contextual help card and prompts show the active bindings.
 
 | Context | Action | Default keys |
 |---|---|---|
@@ -186,6 +186,7 @@ Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shif
 | `list` | `first` / `last` | `g` / `G` |
 | `list` | `expand` / `collapse` | `tab`, `right`, `l` / `shift+tab`, `left`, `h` |
 | `list` | `attach` | `enter` |
+| `list` | `help` | `?` |
 | `list` | `create` / `rename` / `kill` | `n` / `r` / `x` |
 | `list` | `move_window` | `m` |
 | `list` | `filter` / `clear_filter` | `/` / `esc` |
@@ -200,11 +201,11 @@ Keys use Bubble Tea's case-sensitive names, such as `enter`, `esc`, `tab`, `shif
 
 `any` is a fallback reserved for `kill.cancel`; replace it with explicit keys such as `["n", "esc"]` if only those keys should cancel. These settings control keys inside the mux TUI. The external tmux popup binding remains configured separately with `mux setup-keybind`.
 
-To move a window, expand a session, select a window row, and press `m`. Choose another session and press `Enter`; `Esc` cancels. mux preserves the destination's active window and uses its next free window index. Moving a session's final window is allowed; the chooser warns that tmux will remove the now-empty source session and may detach clients attached to it.
+To move a window, drill into a session, select a window, and press `m`. Choose another session and press `Enter`; `Esc` cancels. mux preserves the destination's active window and uses its next free window index. Moving a session's final window is allowed; the chooser warns that tmux will remove the now-empty source session and may detach clients attached to it.
 
 ### Popup mode (recommended)
 
-Open mux as a floating overlay inside tmux — works even while AI CLIs are running in the foreground.
+Open mux as a borderless fullscreen task switcher inside tmux — it works even while AI CLIs are running in the foreground.
 
 ```bash
 # Set up the keybinding (one-time)
@@ -244,9 +245,10 @@ These defaults can be replaced through [custom keybindings](#custom-keybindings)
 |---|---|
 | `j` / `k` | Move down / up |
 | `g` / `G` | Jump to first / last |
-| `Tab` / `→` / `l` | Expand session → windows → panes |
-| `Shift+Tab` / `←` / `h` | Collapse one level |
+| `Tab` / `→` / `l` | Drill into session → windows → panes |
+| `Shift+Tab` / `←` / `h` | Return to the parent level |
 | `Enter` | Attach (focuses the selected window/pane) |
+| `?` | Toggle contextual help |
 | `n` | Create new session |
 | `r` | Rename session |
 | `x` | Delete session (with confirmation) |

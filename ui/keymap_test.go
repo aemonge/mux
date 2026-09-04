@@ -19,6 +19,7 @@ func TestDefaultKeyMapContainsEveryMuxAction(t *testing.T) {
 			"expand":       {"tab", "right", "l"},
 			"collapse":     {"shift+tab", "left", "h"},
 			"attach":       {"enter"},
+			"help":         {"?"},
 			"create":       {"n"},
 			"kill":         {"x"},
 			"move_window":  {"m"},

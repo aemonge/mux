@@ -7,51 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const (
-	stackedHelpRows      = 2
-	stackedSeparatorRows = 1
-	minimumStackedHeight = 12
-)
-
-type stackedHeights struct {
-	preview   int
-	separator int
-	list      int
-	help      int
-}
-
-// calculateStackedHeights gives the upper half to preview plus its separator,
-// reserves exactly two help rows, and gives the remainder to selection.
-func calculateStackedHeights(total int) stackedHeights {
-	if total <= 0 {
-		return stackedHeights{}
-	}
-
-	help := min(stackedHelpRows, total)
-	upper := total / 2
-	separator := 0
-	if upper > 0 {
-		separator = stackedSeparatorRows
-	}
-	preview := max(0, upper-separator)
-	list := max(0, total-upper-help)
-
-	return stackedHeights{
-		preview:   preview,
-		separator: separator,
-		list:      list,
-		help:      help,
-	}
-}
-
-func renderSeparator(width int) string {
-	if width <= 0 {
-		return ""
-	}
-	return lipgloss.NewStyle().
-		Foreground(colorSeparator).
-		Render(strings.Repeat("━", width))
-}
+const minimumSwitcherHeight = 12
 
 // padOrTruncate ensures a string is exactly `width` visible characters
 func padOrTruncate(s string, width int) string {
@@ -91,6 +47,54 @@ func fixedBox(content string, width, height int) string {
 	return strings.Join(result, "\n")
 }
 
+// overlayCentered composites foreground over background at terminal-cell
+// boundaries. ANSI-aware cuts preserve styling and wide-character alignment.
+func overlayCentered(background, foreground string, width, height int) string {
+	backgroundLines := strings.Split(fixedBox(background, width, height), "\n")
+	foregroundLines := strings.Split(foreground, "\n")
+	foregroundWidth := 0
+	for _, line := range foregroundLines {
+		foregroundWidth = max(foregroundWidth, ansi.StringWidth(line))
+	}
+	foregroundWidth = min(foregroundWidth, width)
+	foregroundHeight := min(len(foregroundLines), height)
+	x := max(0, (width-foregroundWidth)/2)
+	y := max(0, (height-foregroundHeight)/2)
+
+	for i := 0; i < foregroundHeight; i++ {
+		base := backgroundLines[y+i]
+		overlay := padOrTruncate(foregroundLines[i], foregroundWidth)
+		left := ansi.Cut(base, 0, x)
+		right := ansi.Cut(base, x+foregroundWidth, width)
+		backgroundLines[y+i] = padOrTruncate(left+overlay+right, width)
+	}
+	return strings.Join(backgroundLines, "\n")
+}
+
+// drawTitledBorder wraps fixed-height content in a rounded border whose top
+// edge carries a compact context title.
+func drawTitledBorder(title, content string, width, height int) string {
+	innerWidth := max(0, width-2)
+	label := " " + title + " "
+	label = ansi.Truncate(label, innerWidth, "")
+	top := "╭" + label + strings.Repeat("─", max(0, innerWidth-ansi.StringWidth(label))) + "╮"
+
+	lines := strings.Split(content, "\n")
+	borderStyle := lipgloss.NewStyle().Foreground(colorBorder)
+	titleBorderStyle := lipgloss.NewStyle().Foreground(colorSeparator)
+	result := make([]string, 0, height+2)
+	result = append(result, titleBorderStyle.Render(top))
+	for i := 0; i < height; i++ {
+		line := ""
+		if i < len(lines) {
+			line = lines[i]
+		}
+		result = append(result, borderStyle.Render("│")+padOrTruncate(line, innerWidth)+borderStyle.Render("│"))
+	}
+	result = append(result, borderStyle.Render("╰"+strings.Repeat("─", innerWidth)+"╯"))
+	return strings.Join(result, "\n")
+}
+
 // drawBorder wraps content lines with a rounded border
 func drawBorder(content string, width, height int) string {
 	innerWidth := width - 2
@@ -115,7 +119,12 @@ func drawBorder(content string, width, height int) string {
 	// Bottom border
 	result = append(result, "╰"+strings.Repeat("─", innerWidth)+"╯")
 
-	return lipgloss.NewStyle().
-		Foreground(colorBorder).
-		Render(strings.Join(result, "\n"))
+	borderStyle := lipgloss.NewStyle().Foreground(colorBorder)
+	result[0] = borderStyle.Render(result[0])
+	for i := 1; i < len(result)-1; i++ {
+		line := strings.TrimSuffix(strings.TrimPrefix(result[i], "│"), "│")
+		result[i] = borderStyle.Render("│") + line + borderStyle.Render("│")
+	}
+	result[len(result)-1] = borderStyle.Render(result[len(result)-1])
+	return strings.Join(result, "\n")
 }
