@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/lunemis/mux/tmux"
 )
 
@@ -75,6 +76,40 @@ func TestRenderPreviewCompactHeightOmitsOptionalTokenRow(t *testing.T) {
 	}
 	if !strings.Contains(output, "latest output") {
 		t.Error("compact preview should preserve captured output")
+	}
+}
+
+func TestRenderPreviewAnchorsCapturedOutputBottomLeft(t *testing.T) {
+	session := tmux.Session{Name: "pi", Directory: "/tmp"}
+	item := &listItem{kind: itemSession, session: &session}
+
+	output := ansi.Strip(renderPreview(item, "prompt", 24, 9, nil))
+	lines := strings.Split(output, "\n")
+	bottomInterior := lines[len(lines)-2]
+	if !strings.HasPrefix(bottomInterior, "│prompt") {
+		t.Errorf("bottom interior row = %q, want prompt anchored at left", bottomInterior)
+	}
+	if strings.Contains(strings.Join(lines[:len(lines)-2], "\n"), "prompt") {
+		t.Error("prompt should render only on the bottom interior row")
+	}
+}
+
+func TestRenderPreviewCropsTopAndRightWithoutWrapping(t *testing.T) {
+	session := tmux.Session{Name: "pi", Directory: "/tmp"}
+	item := &listItem{kind: itemSession, session: &session}
+
+	output := ansi.Strip(renderPreview(item, "old\nleft-edge-right\nlatest", 12, 6, nil))
+	if strings.Contains(output, "old") {
+		t.Error("preview should crop the oldest row from the top")
+	}
+	if strings.Contains(output, "right") {
+		t.Error("preview should crop overflowing text from the right")
+	}
+	if !strings.Contains(output, "left-edge-") || !strings.Contains(output, "latest") {
+		t.Error("preview should preserve bottom rows and their left edge")
+	}
+	if lines := strings.Count(output, "\n") + 1; lines != 6 {
+		t.Errorf("preview lines = %d, want 6 without wrapping", lines)
 	}
 }
 

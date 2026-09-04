@@ -148,8 +148,8 @@ func TestCapturePaneWithMock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if content != "hello world" {
-			t.Errorf("expected 'hello world', got %q", content)
+		if content != "hello world\n" {
+			t.Errorf("expected one trailing blank row to be preserved, got %q", content)
 		}
 	})
 }

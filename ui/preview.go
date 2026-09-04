@@ -95,11 +95,11 @@ func renderPreview(item *listItem, captured string, width, height int, tokenUsag
 	allLines[lineIdx] = separator
 	lineIdx++
 	for i := 0; i < contentLines; i++ {
-		if i < len(capLines) {
-			allLines[lineIdx+i] = padOrTruncate(capLines[i], innerWidth)
-		} else {
-			allLines[lineIdx+i] = strings.Repeat(" ", innerWidth)
-		}
+		allLines[lineIdx+i] = strings.Repeat(" ", innerWidth)
+	}
+	contentStart := lineIdx + contentLines - len(capLines)
+	for i, line := range capLines {
+		allLines[contentStart+i] = padOrTruncate(line, innerWidth)
 	}
 
 	content := strings.Join(allLines, "\n")
